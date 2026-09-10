@@ -1,2 +1,5 @@
 pymongo
-dotenv
+python-dotenv
+fastapi
+uvicorn[standard]
+pydantic>=2
