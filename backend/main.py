@@ -1,5 +1,8 @@
 """
-Ponto de entrada da API — Módulo 1 (Pessoas e Abrigos).
+Ponto de entrada da API — Módulos 1 e 2.
+
+Módulo 1: Pessoas e Abrigos
+Módulo 2: Doações e Mantimentos
 
 Rodar localmente:
     uvicorn backend.main:app --reload
@@ -11,16 +14,24 @@ Variáveis de ambiente esperadas (fornecidas pelo Integrante 1 - DBA):
 
 from fastapi import FastAPI
 
-from backend.routes import pessoas, abrigos
+from backend.routes import pessoas, abrigos, doacoes, mantimentos
 
 app = FastAPI(
-    title="Gestão de Resgatados e Doações — Módulo 1",
-    description="Cadastro de pessoas resgatadas, gestão de abrigos e vínculo entre eles.",
-    version="0.1.0",
+    title="Gestão de Resgatados e Doações",
+    description=(
+        "Módulo 1: Cadastro de pessoas resgatadas, gestão de abrigos e vínculo entre eles.\n"
+        "Módulo 2: Logística de doações e controle de estoque de mantimentos nos abrigos."
+    ),
+    version="0.2.0",
 )
 
+# Módulo 1 — Pessoas e Abrigos
 app.include_router(pessoas.router)
 app.include_router(abrigos.router)
+
+# Módulo 2 — Doações e Mantimentos
+app.include_router(doacoes.router)
+app.include_router(mantimentos.router)
 
 
 @app.get("/health")
