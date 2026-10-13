@@ -2,7 +2,7 @@
 CRUD de Pessoas Resgatadas — cadastro, atualização e vínculo com abrigo.
 """
 
-from typing import Any
+from typing import Any, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 
@@ -53,7 +53,7 @@ def buscar_pessoa(pessoa_id: str) -> dict[str, Any]:
     return pessoa_to_dict(doc)
 
 
-def listar_pessoas(abrigo_atual: str | None = None) -> list[dict[str, Any]]:
+def listar_pessoas(abrigo_atual: Optional[str] = None) -> list[dict[str, Any]]:
     if abrigo_atual == "null":
         filtro = {"abrigo_atual": {"$in": [None, ""]}}
     elif abrigo_atual:

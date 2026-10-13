@@ -13,8 +13,9 @@ Variáveis de ambiente esperadas (fornecidas pelo Integrante 1 - DBA):
 """
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
-from backend.routes import pessoas, abrigos, doacoes, mantimentos
+from backend.routes import pessoas, abrigos, doacoes, mantimentos, relatorios
 
 app = FastAPI(
     title="Gestão de Resgatados e Doações",
@@ -32,6 +33,14 @@ app.include_router(abrigos.router)
 # Módulo 2 — Doações e Mantimentos
 app.include_router(doacoes.router)
 app.include_router(mantimentos.router)
+
+# Módulo 3 — Relatórios e Inteligência
+app.include_router(relatorios.router)
+
+
+@app.get("/", include_in_schema=False)
+def raiz():
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health")
