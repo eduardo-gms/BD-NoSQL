@@ -22,6 +22,7 @@ class MantimentoCreate(BaseModel):
     unidade: Optional[str] = None  # ex: "kg", "unidades", "litros"
     quantidade_minima: Optional[int] = Field(default=None, ge=0)  # limiar de escassez
     observacoes: Optional[str] = None
+    origem: Optional[str] = None  # de onde veio (vai só para o histórico)
 
 
 class MantimentoSaidaRequest(BaseModel):

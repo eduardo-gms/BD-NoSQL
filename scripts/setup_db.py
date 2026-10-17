@@ -7,7 +7,8 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("MONGO_DB_NAME", "abrigos_db")
 
-COLLECTIONS = ["pessoas", "abrigos", "doacoes"]
+# mesmos nomes usados em backend/crud
+COLLECTIONS = ["pessoas_resgatadas", "abrigos", "doacoes", "mantimentos"]
 
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]

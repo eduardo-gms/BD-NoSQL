@@ -65,10 +65,28 @@ def listar_pessoas(abrigo_atual: str | None = None) -> list[dict[str, Any]]:
 
 
 def atualizar_pessoa(pessoa_id: str, dados: dict[str, Any]) -> dict[str, Any]:
-    """Atualização parcial e schema-less — qualquer campo pode ser enviado."""
-    dados = {k: v for k, v in dados.items() if v is not None and k != "abrigo_atual"}
-    if dados:
-        pessoas_collection().update_one({"_id": _oid(pessoa_id)}, {"$set": dados})
+    """
+    Atualização parcial e schema-less — qualquer campo pode ser enviado.
+    Campos enviados como null são removidos do documento. O abrigo não muda
+    por aqui (use as rotas de vínculo, que ajustam a ocupação).
+    """
+    atual = buscar_pessoa(pessoa_id)  # levanta PessoaNaoEncontrada
+    dados = {k: v for k, v in dados.items() if k not in ("id", "_id", "abrigo_atual")}
+    definir = {k: v for k, v in dados.items() if v is not None}
+    remover = {k: "" for k, v in dados.items() if v is None}
+
+    # mesma regra do cadastro: precisa continuar com algum nome ou foto
+    resultado = {**{k: v for k, v in atual.items() if k not in remover}, **definir}
+    if not any(resultado.get(k) for k in ("nome", "nome_conhecido", "nome_completo", "foto")):
+        raise ValueError("A pessoa precisa continuar com algum nome ou foto.")
+
+    operacao: dict[str, Any] = {}
+    if definir:
+        operacao["$set"] = definir
+    if remover:
+        operacao["$unset"] = remover
+    if operacao:
+        pessoas_collection().update_one({"_id": _oid(pessoa_id)}, operacao)
     return buscar_pessoa(pessoa_id)
 
 

@@ -19,6 +19,10 @@ class DoacaoNaoEncontrada(Exception):
     pass
 
 
+class DoacaoJaDestinada(Exception):
+    pass
+
+
 def _oid(doacao_id: str) -> ObjectId:
     try:
         return ObjectId(doacao_id)
@@ -91,3 +95,48 @@ def deletar_doacao(doacao_id: str) -> dict[str, Any]:
     doc = buscar_doacao(doacao_id)  # levanta DoacaoNaoEncontrada se não existir
     doacoes_collection().delete_one({"_id": _oid(doacao_id)})
     return doc
+
+
+def destinar_doacao(
+    doacao_id: str, abrigo_id: str, quantidade: Optional[int] = None
+) -> dict[str, Any]:
+    """
+    Envia uma doação para o estoque de um abrigo.
+
+    1. Dá entrada do item nos mantimentos do abrigo (somando se o item já existir).
+    2. Marca a doação com o campo `destinacao`, para não ser enviada duas vezes.
+
+    Retorna a doação atualizada e o mantimento que recebeu a entrada.
+    """
+    from backend.crud.mantimentos import dar_entrada_mantimento
+
+    doacao = buscar_doacao(doacao_id)
+    if doacao.get("destinacao"):
+        raise DoacaoJaDestinada("Esta doação já foi enviada para um abrigo.")
+
+    # doações antigas usam quantidade_exata ou quantidade_estimada
+    quantidade = quantidade or doacao.get("quantidade") or doacao.get("quantidade_exata") or doacao.get("quantidade_estimada")
+    if not quantidade:
+        raise ValueError("A doação não tem quantidade registrada. Informe a quantidade a enviar.")
+
+    entrada = {
+        "item": doacao["item"],
+        "quantidade": quantidade,
+        "abrigo_id": abrigo_id,
+        "categoria": doacao.get("categoria"),
+        "unidade": doacao.get("unidade"),
+    }
+    mantimento, _ = dar_entrada_mantimento(
+        entrada,
+        descricao=f"Doação de {doacao.get('doador') or 'doador anônimo'}",
+        extra_historico={"doacao_id": doacao_id},
+    )
+
+    destinacao = {
+        "abrigo_id": abrigo_id,
+        "mantimento_id": mantimento["id"],
+        "quantidade": quantidade,
+        "data": datetime.now(timezone.utc).isoformat(),
+    }
+    doacoes_collection().update_one({"_id": _oid(doacao_id)}, {"$set": {"destinacao": destinacao}})
+    return {"doacao": buscar_doacao(doacao_id), "mantimento": mantimento}

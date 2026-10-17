@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 load_dotenv()
 
@@ -15,6 +16,15 @@ if not MONGO_URI:
 
 _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = _client[DB_NAME]
+
+
+def ping() -> bool:
+    """Testa se o cluster está respondendo."""
+    try:
+        _client.admin.command("ping")
+        return True
+    except PyMongoError:
+        return False
 
 
 def get_collection(nome: str):

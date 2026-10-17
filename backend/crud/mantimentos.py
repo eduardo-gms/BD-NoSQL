@@ -5,6 +5,7 @@ Gerencia entradas, saídas, redistribuição entre abrigos e detecção
 de situações de escassez.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 from bson import ObjectId
@@ -39,17 +40,32 @@ def _agora_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _buscar_item_no_abrigo(item: str, abrigo_id: str) -> Optional[dict[str, Any]]:
+    """Procura o mesmo item no abrigo, ignorando maiúsculas/minúsculas."""
+    return mantimentos_collection().find_one(
+        {"item": {"$regex": f"^{re.escape(item.strip())}$", "$options": "i"}, "abrigo_id": abrigo_id}
+    )
+
+
 # ──────────────────────────────────────────────────────────────────
 # Entrada de mantimentos
 # ──────────────────────────────────────────────────────────────────
 
 
-def dar_entrada_mantimento(dados: dict[str, Any]) -> dict[str, Any]:
+def dar_entrada_mantimento(
+    dados: dict[str, Any],
+    descricao: Optional[str] = None,
+    extra_historico: Optional[dict[str, Any]] = None,
+) -> tuple[dict[str, Any], bool]:
     """
-    Dá entrada em um novo mantimento vinculado a um abrigo.
+    Dá entrada de um mantimento no estoque de um abrigo.
 
-    Valida que o abrigo existe antes de inserir. Registra a movimentação
-    de entrada no histórico do documento.
+    Se o abrigo já tiver o mesmo item, soma a quantidade ao registro
+    existente em vez de criar outro. Em ambos os casos a movimentação
+    fica no histórico do documento.
+
+    Retorna (mantimento, criado), onde `criado` indica se foi inserido
+    um documento novo.
     """
     abrigo_id = dados.get("abrigo_id")
     if not abrigo_id:
@@ -59,19 +75,43 @@ def dar_entrada_mantimento(dados: dict[str, Any]) -> dict[str, Any]:
     buscar_abrigo(abrigo_id)  # levanta AbrigoNaoEncontrado se não existir
 
     doc = {k: v for k, v in dados.items() if v is not None}
-    doc["data_entrada"] = _agora_iso()
+    doc["item"] = doc["item"].strip()
+    agora = _agora_iso()
+    quantidade = doc.get("quantidade", 0)
+
+    existente = _buscar_item_no_abrigo(doc["item"], abrigo_id)
+    if existente:
+        registro = {
+            "tipo": "entrada",
+            "quantidade": quantidade,
+            "data": agora,
+            "descricao": descricao or "Entrada de estoque",
+            **(extra_historico or {}),
+        }
+        # campos enviados (ex: nova quantidade_minima) atualizam o registro
+        atualizar = {k: v for k, v in doc.items() if k not in ("item", "quantidade", "abrigo_id")}
+        operacao: dict[str, Any] = {"$inc": {"quantidade": quantidade}, "$push": {"historico": registro}}
+        if atualizar:
+            operacao["$set"] = atualizar
+        atualizado = mantimentos_collection().find_one_and_update(
+            {"_id": existente["_id"]}, operacao, return_document=ReturnDocument.AFTER
+        )
+        return mantimento_to_dict(atualizado), False
+
+    doc["data_entrada"] = agora
     doc["historico"] = [
         {
             "tipo": "entrada",
-            "quantidade": doc.get("quantidade", 0),
-            "data": doc["data_entrada"],
-            "descricao": "Entrada inicial no estoque",
+            "quantidade": quantidade,
+            "data": agora,
+            "descricao": descricao or "Entrada inicial no estoque",
+            **(extra_historico or {}),
         }
     ]
 
     resultado = mantimentos_collection().insert_one(doc)
     inserido = mantimentos_collection().find_one({"_id": resultado.inserted_id})
-    return mantimento_to_dict(inserido)
+    return mantimento_to_dict(inserido), True
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -227,9 +267,7 @@ def associar_abrigo_escassez(
         "descricao": descricao,
     }
 
-    existente_destino = mantimentos_collection().find_one(
-        {"item": item_nome, "abrigo_id": abrigo_destino_id}
-    )
+    existente_destino = _buscar_item_no_abrigo(item_nome, abrigo_destino_id)
 
     if existente_destino:
         # Incrementa estoque existente no destino
