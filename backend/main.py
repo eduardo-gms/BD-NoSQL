@@ -1,8 +1,9 @@
 """
-Ponto de entrada da API — Módulos 1 e 2.
+Ponto de entrada da API — Módulos 1, 2 e 3.
 
 Módulo 1: Pessoas e Abrigos
 Módulo 2: Doações e Mantimentos
+Módulo 3: Relatórios
 
 Rodar localmente:
     uvicorn backend.main:app --reload
@@ -20,13 +21,14 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.db import DB_NAME, ping
-from backend.routes import pessoas, abrigos, doacoes, mantimentos
+from backend.routes import pessoas, abrigos, doacoes, mantimentos, relatorios
 
 app = FastAPI(
     title="Gestão de Resgatados e Doações",
     description=(
         "Módulo 1: Cadastro de pessoas resgatadas, gestão de abrigos e vínculo entre eles.\n"
-        "Módulo 2: Logística de doações e controle de estoque de mantimentos nos abrigos."
+        "Módulo 2: Logística de doações e controle de estoque de mantimentos nos abrigos.\n"
+        "Módulo 3: Relatórios sobre necessidades médicas, suprimentos, ocupação e cadastros."
     ),
     version="0.2.0",
 )
@@ -47,6 +49,9 @@ app.include_router(abrigos.router)
 app.include_router(doacoes.router)
 app.include_router(mantimentos.router)
 
+# Módulo 3 — Relatórios e Inteligência
+app.include_router(relatorios.router)
+
 
 @app.get("/health")
 def health():
@@ -60,6 +65,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if FRONTEND_DIR.is_dir():
     app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
-    @app.get("/", include_in_schema=False)
-    def raiz():
-        return RedirectResponse(url="/app/")
+
+@app.get("/", include_in_schema=False)
+def raiz():
+    # vai para a interface quando ela existir; senão, para a documentação
+    return RedirectResponse(url="/app/" if FRONTEND_DIR.is_dir() else "/docs")
