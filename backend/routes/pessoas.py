@@ -34,11 +34,16 @@ def listar_pessoas(abrigo_atual: Optional[str] = None):
 
 @router.patch("/{pessoa_id}")
 def atualizar_pessoa(pessoa_id: str, dados: dict = Body(...)):
-    """Atualização parcial e schema-less de qualquer campo da pessoa."""
+    """
+    Atualização parcial e schema-less de qualquer campo da pessoa.
+    Enviar um campo com `null` remove esse campo do documento.
+    """
     try:
         return crud.atualizar_pessoa(pessoa_id, dados)
     except crud.PessoaNaoEncontrada:
         raise HTTPException(404, "Pessoa não encontrada.")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 @router.patch("/{pessoa_id}/vincular-abrigo")

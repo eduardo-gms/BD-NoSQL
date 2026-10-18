@@ -3,7 +3,7 @@ Rotas da API — Mantimentos (controle de estoque de suprimentos).
 """
 
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from backend.models.mantimento import (
     MantimentoCreate,
@@ -32,16 +32,25 @@ def listar_abrigos_em_escassez():
 
 
 @router.post("/", status_code=201)
-def dar_entrada_mantimento(mantimento: MantimentoCreate):
+def dar_entrada_mantimento(mantimento: MantimentoCreate, response: Response):
     """
-    Dá entrada em um novo suprimento vinculado a um abrigo.
+    Dá entrada de um suprimento no estoque de um abrigo.
 
     Campos obrigatórios: `item`, `quantidade`, `abrigo_id`.
     Aceita campos extras livremente (schema-less).
+
+    Se o abrigo já tiver o mesmo item, a quantidade é somada ao registro
+    existente e a resposta é **200** em vez de **201**.
     """
     try:
         dados = mantimento.model_dump(exclude_none=True)
-        return crud.dar_entrada_mantimento(dados)
+        origem = dados.pop("origem", None)
+        doc, criado = crud.dar_entrada_mantimento(
+            dados, descricao=f"Entrada: {origem}" if origem else None
+        )
+        if not criado:
+            response.status_code = 200
+        return doc
     except AbrigoNaoEncontrado:
         raise HTTPException(404, "Abrigo informado não existe.")
     except ValueError as e:

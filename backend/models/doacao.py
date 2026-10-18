@@ -33,6 +33,14 @@ class DoacaoUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class DestinarDoacaoRequest(BaseModel):
+    """Envia a doação para o estoque de um abrigo."""
+
+    abrigo_id: str
+    # se não vier, usa a quantidade registrada na doação
+    quantidade: Optional[int] = Field(default=None, ge=1)
+
+
 def doacao_to_dict(doc: dict[str, Any]) -> dict[str, Any]:
     """Converte o documento do Mongo (com _id ObjectId) para um dict serializável."""
     doc = dict(doc)

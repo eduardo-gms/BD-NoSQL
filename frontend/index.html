@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOS Abrigos | Gestão de resgatados e doações</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <strong>SOS Abrigos</strong>
+      <small>Gestão de resgatados e doações</small>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="painel" id="nav-painel">Painel</button>
+      <button class="nav-item" data-view="pessoas" id="nav-pessoas">Pessoas</button>
+      <button class="nav-item" data-view="abrigos" id="nav-abrigos">Abrigos</button>
+      <button class="nav-item" data-view="doacoes" id="nav-doacoes">Doações</button>
+      <button class="nav-item" data-view="mantimentos" id="nav-mantimentos">Mantimentos</button>
+      <button class="nav-item" data-view="escassez" id="nav-escassez">Escassez <em class="nav-badge" id="badge-escassez">0</em></button>
+    </nav>
+
+    <div class="api-box">
+      <label for="api-url">URL da API</label>
+      <div class="api-row">
+        <input id="api-url" type="text" spellcheck="false" />
+        <button class="btn btn-sm" id="btn-save-api" title="Salvar e reconectar">OK</button>
+      </div>
+      <div class="api-status" id="api-status"><i class="dot"></i><span>Verificando...</span></div>
+      <a class="docs-link" id="docs-link" href="#" target="_blank" rel="noopener">Documentação da API (/docs)</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="view-title">Painel geral</h1>
+        <p id="view-subtitle">Resumo da operação</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" id="btn-refresh">Atualizar</button>
+        <button class="btn" id="btn-console">Requisições <em class="nav-badge" id="badge-console">0</em></button>
+      </div>
+    </header>
+
+    <!-- Painel -->
+    <section class="view active" id="view-painel">
+      <div class="stats" id="stats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Ocupação dos abrigos</h2><span class="muted small" id="ocupacao-legend"></span></div>
+          <div id="ocupacao-list" class="ocupacao-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Formatos de documento</h2></div>
+          <p class="muted small">Quantidade de estruturas diferentes encontradas em cada coleção.</p>
+          <div id="schema-profiles" class="schema-profiles"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pessoas -->
+    <section class="view" id="view-pessoas">
+      <div class="toolbar">
+        <input class="input" id="pessoas-busca" placeholder="Buscar por nome, CPF, local..." />
+        <select class="input" id="pessoas-filtro">
+          <option value="">Todas as pessoas</option>
+          <option value="null">Sem abrigo</option>
+        </select>
+        <button class="btn btn-primary" id="btn-nova-pessoa">Cadastrar pessoa</button>
+      </div>
+      <p class="muted small" id="pessoas-count"></p>
+      <div class="cards" id="pessoas-list"></div>
+    </section>
+
+    <!-- Abrigos -->
+    <section class="view" id="view-abrigos">
+      <div class="toolbar">
+        <input class="input" id="abrigos-busca" placeholder="Buscar abrigo..." />
+        <select class="input" id="abrigos-filtro">
+          <option value="">Todos os status</option>
+        </select>
+        <button class="btn btn-primary" id="btn-novo-abrigo">Cadastrar abrigo</button>
+      </div>
+      <div class="cards" id="abrigos-list"></div>
+    </section>
+
+    <!-- Doações -->
+    <section class="view" id="view-doacoes">
+      <div class="toolbar">
+        <input class="input" id="doacoes-item" placeholder="Item" />
+        <input class="input" id="doacoes-doador" placeholder="Doador" />
+        <input class="input" id="doacoes-categoria" placeholder="Categoria" list="lista-categorias" />
+        <button class="btn" id="btn-filtrar-doacoes">Filtrar</button>
+        <button class="btn btn-primary" id="btn-nova-doacao">Registrar doação</button>
+      </div>
+      <p class="muted small" id="doacoes-count"></p>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Item</th><th>Categoria</th><th>Quantidade</th><th>Doador</th><th>Lote / Validade</th><th>Campos</th><th>Destino</th><th></th></tr></thead>
+          <tbody id="doacoes-list"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Mantimentos -->
+    <section class="view" id="view-mantimentos">
+      <div class="toolbar">
+        <select class="input" id="mant-abrigo"><option value="">Todos os abrigos</option></select>
+        <input class="input" id="mant-item" placeholder="Item" />
+        <label class="check"><input type="checkbox" id="mant-baixo" /> Somente estoque baixo</label>
+        <button class="btn" id="btn-filtrar-mant">Filtrar</button>
+        <button class="btn btn-primary" id="btn-novo-mant">Entrada de estoque</button>
+      </div>
+      <p class="muted small" id="mant-count"></p>
+      <div class="cards" id="mant-list"></div>
+    </section>
+
+    <!-- Escassez -->
+    <section class="view" id="view-escassez">
+      <p class="muted small" style="margin-bottom:14px">Abrigos com necessidades urgentes cadastradas ou com algum mantimento abaixo da quantidade mínima.</p>
+      <div class="cards" id="escassez-list"></div>
+    </section>
+  </main>
+
+  <!-- Log de requisições -->
+  <aside class="console" id="console">
+    <div class="console-head">
+      <strong>Requisições HTTP</strong>
+      <div>
+        <button class="btn btn-sm" id="btn-clear-console">Limpar</button>
+        <button class="btn btn-sm" id="btn-close-console">Fechar</button>
+      </div>
+    </div>
+    <ul class="console-list" id="console-list"></ul>
+  </aside>
+
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <button class="btn btn-sm" id="modal-close">Fechar</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <datalist id="lista-categorias">
+    <option value="Alimentos"></option>
+    <option value="Alimentos Perecíveis"></option>
+    <option value="Medicamentos"></option>
+    <option value="Higiene"></option>
+    <option value="Roupas"></option>
+  </datalist>
+
+  <script src="app.js"></script>
+</body>
+</html>

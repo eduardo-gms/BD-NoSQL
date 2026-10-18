@@ -1,0 +1,2275 @@
+{
+  "info": {
+    "name": "BD-NoSQL — Gestão de Resgatados e Doações",
+    "description": "Coleção de demonstração ao vivo (Integrante 6 — Frontend/QA).\n\nExecute as pastas NA ORDEM (ou use o Collection Runner). Os IDs criados são salvos automaticamente em variáveis da coleção e reutilizados nas requisições seguintes.\n\nPré-requisito: API rodando em {{baseUrl}} (`uvicorn backend.main:app --reload`) e banco populado (`node scripts/seed.js`).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "abrigo_id",
+      "value": ""
+    },
+    {
+      "key": "abrigo2_id",
+      "value": ""
+    },
+    {
+      "key": "pessoa_id",
+      "value": ""
+    },
+    {
+      "key": "pessoa_completa_id",
+      "value": ""
+    },
+    {
+      "key": "doacao_id",
+      "value": ""
+    },
+    {
+      "key": "mantimento_id",
+      "value": ""
+    },
+    {
+      "key": "mantimento2_id",
+      "value": ""
+    },
+    {
+      "key": "item_agua",
+      "value": ""
+    },
+    {
+      "key": "doacao2_id",
+      "value": ""
+    },
+    {
+      "key": "abrigo_novo_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Saúde da API",
+      "description": "Confirma que o backend está no ar.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Abrigos (Módulo 1)",
+      "description": "Consulta e atualização de abrigos.",
+      "item": [
+        {
+          "name": "Listar abrigos (salva 2 IDs)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                ""
+              ]
+            },
+            "description": "Abrigos improvisados têm só `capacidade_estimada`; ginásios têm `capacidade_maxima`, `ocupacao_atual`, `necessidades_urgentes`..."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const lista = pm.response.json();",
+                  "pm.test(\"Há ao menos 2 abrigos (rode o seed)\", () => pm.expect(lista.length).to.be.at.least(2));",
+                  "pm.collectionVariables.set(\"abrigo_id\", lista[0].id);",
+                  "pm.collectionVariables.set(\"abrigo2_id\", lista[lista.length - 1].id);",
+                  "pm.test(\"Documentos heterogêneos: nem todos têm capacidade_maxima\", () => {",
+                  "  const com = lista.filter(a => a.capacidade_maxima !== undefined).length;",
+                  "  pm.expect(com).to.be.below(lista.length);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar abrigo por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar status + campo novo (schema-less)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_id}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_id}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"aberto\",\n  \"capacidade_maxima\": 80,\n  \"necessidades_urgentes\": [\n    \"Água potável\",\n    \"Colchões\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = aberto\", () => pm.expect(pm.response.json().status).to.eql(\"aberto\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar abrigo inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "000000000000000000000000"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar abrigo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Escola Municipal Centro\",\n  \"endereco\": \"Rua A, 100\",\n  \"coordenador\": \"Carla Mendes\",\n  \"capacidade_maxima\": 60,\n  \"necessidades_urgentes\": [\n    \"Colchões\"\n  ],\n  \"possui_cozinha\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const a = pm.response.json();",
+                  "pm.collectionVariables.set(\"abrigo_novo_id\", a.id);",
+                  "pm.test(\"Ocupação começa em 0\", () => pm.expect(a.ocupacao_atual).to.eql(0));",
+                  "pm.test(\"Status padrão 'aberto'\", () => pm.expect(a.status).to.eql(\"aberto\"));",
+                  "pm.test(\"Campo extra aceito\", () => pm.expect(a.possui_cozinha).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar abrigo SEM nome (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endereco\": \"Rua B, 200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar abrigo (altera, remove campo, ignora ocupação)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_novo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_novo_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coordenador\": \"Paulo Lima\",\n  \"endereco\": null,\n  \"necessidades_urgentes\": [\n    \"Colchões\",\n    \"Fraldas\"\n  ],\n  \"ocupacao_atual\": 999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json();",
+                  "pm.test(\"Coordenador alterado\", () => pm.expect(a.coordenador).to.eql(\"Paulo Lima\"));",
+                  "pm.test(\"Endereço removido (null)\", () => pm.expect(a.endereco).to.be.undefined);",
+                  "pm.test(\"Necessidades atualizadas\", () => pm.expect(a.necessidades_urgentes).to.eql([\"Colchões\", \"Fraldas\"]));",
+                  "pm.test(\"Ocupação não foi alterada\", () => pm.expect(a.ocupacao_atual).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar abrigo inexistente (404)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "000000000000000000000000"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coordenador\": \"X\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir abrigo vazio",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_novo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_novo_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar abrigo excluído (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_novo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_novo_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Pessoas resgatadas (Módulo 1)",
+      "description": "Cadastros heterogêneos, regra de validação e vínculo com abrigos.",
+      "item": [
+        {
+          "name": "Cadastrar — resgate rápido (só apelido)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_conhecido\": \"Seu Zé\",\n  \"local_resgate\": \"Rua das Flores, 120 — telhado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"pessoa_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar — prontuário completo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_completo\": \"Maria Aparecida dos Santos\",\n  \"idade\": 67,\n  \"cpf\": \"12345678900\",\n  \"tipo_sanguineo\": \"O-\",\n  \"local_resgate\": \"Bairro Sarandi — barco\",\n  \"condicoes_saude\": {\n    \"medicacao_continua\": [\n      \"Insulina\",\n      \"Losartana\"\n    ]\n  },\n  \"contatos_emergencia\": [\n    {\n      \"nome\": \"João dos Santos (filho)\",\n      \"telefone\": \"(51) 99999-0000\"\n    }\n  ],\n  \"alergias\": [\n    \"Dipirona\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"pessoa_completa_id\", pm.response.json().id);",
+                  "pm.test(\"Campo extra 'alergias' foi aceito\", () => pm.expect(pm.response.json().alergias).to.eql([\"Dipirona\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar — somente foto (criança não identificada)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"foto\": \"https://exemplo.org/fotos/crianca-01.jpg\",\n  \"idade_aparente\": \"5 a 7 anos\",\n  \"roupa\": \"camiseta azul\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar — INVÁLIDO sem nome e sem foto (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ]
+            },
+            "description": "Regra de negócio: exige ao menos um nome ou foto.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"local_resgate\": \"Sem identificação\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar todas as pessoas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar pessoas SEM abrigo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/?abrigo_atual=null",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "abrigo_atual",
+                  "value": "null"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Nenhuma tem abrigo\", () => pm.response.json().forEach(p => pm.expect(p.abrigo_atual || null).to.eql(null)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar pessoa por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar pessoa — adiciona campos novos (schema-less)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_completo\": \"José Carlos da Silva\",\n  \"estado_saude\": \"Estável\",\n  \"necessita\": [\n    \"Cadeira de rodas\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Campo novo gravado\", () => pm.expect(pm.response.json().estado_saude).to.eql(\"Estável\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar pessoa — remover campo (null)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"necessita\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Campo removido\", () => pm.expect(pm.response.json().necessita).to.be.undefined);",
+                  "pm.test(\"Outros campos mantidos\", () => pm.expect(pm.response.json().estado_saude).to.eql(\"Estável\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar pessoa — remover todos os nomes (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_conhecido\": null,\n  \"nome_completo\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vincular pessoa ao abrigo (incrementa ocupação)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}/vincular-abrigo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}",
+                "vincular-abrigo"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_atual\": \"{{abrigo_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Vinculada\", () => pm.expect(pm.response.json().abrigo_atual).to.eql(pm.collectionVariables.get(\"abrigo_id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Conferir ocupação do abrigo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"ocupacao_atual >= 1\", () => pm.expect(pm.response.json().ocupacao_atual).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar pessoas do abrigo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/?abrigo_atual={{abrigo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "abrigo_atual",
+                  "value": "{{abrigo_id}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Contém a pessoa vinculada\", () => pm.expect(pm.response.json().map(p => p.id)).to.include(pm.collectionVariables.get(\"pessoa_id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transferir pessoa para outro abrigo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}/vincular-abrigo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}",
+                "vincular-abrigo"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_atual\": \"{{abrigo2_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desvincular pessoa do abrigo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}/vincular-abrigo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}",
+                "vincular-abrigo"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Sem abrigo\", () => pm.expect(pm.response.json().abrigo_atual).to.be.undefined);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vincular a abrigo inexistente (404)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pessoas/{{pessoa_id}}/vincular-abrigo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pessoas",
+                "{{pessoa_id}}",
+                "vincular-abrigo"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_atual\": \"000000000000000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Doações (Módulo 2)",
+      "description": "Registro, filtros, atualização e exclusão de doações.",
+      "item": [
+        {
+          "name": "Registrar doação anônima simples",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"Água Mineral 5L\",\n  \"quantidade\": 40,\n  \"unidade\": \"galões\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"data_registro automática\", () => pm.expect(pm.response.json().data_registro).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar medicamento com lote e validade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"Amoxicilina 500mg\",\n  \"categoria\": \"Medicamentos\",\n  \"quantidade\": 30,\n  \"unidade\": \"caixas\",\n  \"lote\": \"AMX2026B\",\n  \"validade\": \"2027-08-31\",\n  \"doador\": \"Farmácia Popular Centro\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"doacao_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar institucional com campos livres",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"Cestas básicas\",\n  \"categoria\": \"Alimentos\",\n  \"quantidade\": 200,\n  \"doador\": \"Cruz Vermelha\",\n  \"transportadora\": \"Exército\",\n  \"nota_fiscal\": \"NF-55821\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar SEM item (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidade\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar doações",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar por categoria = Medicamentos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/?categoria=Medicamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "categoria",
+                  "value": "Medicamentos"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Todas são Medicamentos\", () => pm.response.json().forEach(d => pm.expect(d.categoria).to.eql(\"Medicamentos\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar por item (busca parcial)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/?item=amox",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "item",
+                  "value": "amox"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar por doador (busca parcial)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/?doador=cruz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "doador",
+                  "value": "cruz"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar doação por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar doação (schema-less)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status_triagem\": \"Conferida\",\n  \"conferido_por\": \"Voluntária Ana\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir doação",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar doação excluída (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Mantimentos e escassez (Módulo 2)",
+      "description": "Estoque por abrigo, saídas, redistribuição e detecção de escassez.",
+      "item": [
+        {
+          "name": "Entrada — água ABAIXO do mínimo (abrigo 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"{{item_agua}}\",\n  \"quantidade\": 15,\n  \"quantidade_minima\": 100,\n  \"unidade\": \"litros\",\n  \"categoria\": \"Alimentos\",\n  \"abrigo_id\": \"{{abrigo_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// nome único a cada execução: o mesmo item no mesmo abrigo seria somado em vez de criado",
+                  "pm.collectionVariables.set(\"item_agua\", \"Água potável (teste \" + Date.now() + \")\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"mantimento_id\", pm.response.json().id);",
+                  "pm.test(\"Histórico inicial criado\", () => pm.expect(pm.response.json().historico.length).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrada — água farta (abrigo 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"{{item_agua}}\",\n  \"quantidade\": 500,\n  \"quantidade_minima\": 50,\n  \"unidade\": \"litros\",\n  \"categoria\": \"Alimentos\",\n  \"abrigo_id\": \"{{abrigo2_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"mantimento2_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrada do mesmo item no mesmo abrigo (soma)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"{{item_agua}}\",\n  \"quantidade\": 10,\n  \"abrigo_id\": \"{{abrigo_id}}\",\n  \"origem\": \"Prefeitura\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 (somou, não criou)\", () => pm.response.to.have.status(200));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"Mesmo documento\", () => pm.expect(m.id).to.eql(pm.collectionVariables.get(\"mantimento_id\")));",
+                  "pm.test(\"Estoque = 25 (15 + 10)\", () => pm.expect(m.quantidade).to.eql(25));",
+                  "pm.test(\"Histórico com 2 entradas\", () => pm.expect(m.historico.length).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrada com abrigo inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"Fraldas\",\n  \"quantidade\": 10,\n  \"abrigo_id\": \"000000000000000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar mantimentos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar só estoque baixo ($expr)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/?estoque_baixo=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "estoque_baixo",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Todos abaixo do mínimo\", () => pm.response.json().forEach(m => pm.expect(m.quantidade).to.be.below(m.quantidade_minima)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar mantimentos do abrigo 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/?abrigo_id={{abrigo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "abrigo_id",
+                  "value": "{{abrigo_id}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Abrigos em escassez",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/abrigos-escassez",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                "abrigos-escassez"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Abrigo 1 está em escassez\", () => pm.expect(pm.response.json().map(e => e.abrigo.id)).to.include(pm.collectionVariables.get(\"abrigo_id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar saída válida",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/{{mantimento2_id}}/saida",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                "{{mantimento2_id}}",
+                "saida"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidade\": 20,\n  \"motivo\": \"Distribuição para famílias\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estoque = 480\", () => pm.expect(pm.response.json().quantidade).to.eql(480));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Saída maior que o estoque (409)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/{{mantimento_id}}/saida",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                "{{mantimento_id}}",
+                "saida"
+              ]
+            },
+            "description": "Não permite estoque negativo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidade\": 9999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Redistribuir do abrigo 2 → abrigo 1 (escassez)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/{{mantimento2_id}}/associar-abrigo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                "{{mantimento2_id}}",
+                "associar-abrigo"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_destino_id\": \"{{abrigo_id}}\",\n  \"quantidade\": 200,\n  \"motivo\": \"Abrigo em escassez\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Origem = 280\", () => pm.expect(pm.response.json().quantidade).to.eql(280));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Conferir destino (estoque somado + histórico)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mantimentos/{{mantimento_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mantimentos",
+                "{{mantimento_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"Destino recebeu +200 (era 25)\", () => pm.expect(m.quantidade).to.eql(225));",
+                  "pm.test(\"Histórico tem redistribuicao_entrada\", () => pm.expect(m.historico.map(h => h.tipo)).to.include(\"redistribuicao_entrada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar doação para destinar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": \"{{item_agua}}\",\n  \"quantidade\": 50,\n  \"unidade\": \"litros\",\n  \"doador\": \"Defesa Civil\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"doacao2_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Destinar doação a abrigo inexistente (404)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao2_id}}/destinar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao2_id}}",
+                "destinar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_id\": \"000000000000000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Destinar doação ao abrigo 1 (entra no estoque)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao2_id}}/destinar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao2_id}}",
+                "destinar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_id\": \"{{abrigo_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Somou no mantimento existente\", () => pm.expect(r.mantimento.id).to.eql(pm.collectionVariables.get(\"mantimento_id\")));",
+                  "pm.test(\"Estoque = 275 (225 + 50)\", () => pm.expect(r.mantimento.quantidade).to.eql(275));",
+                  "pm.test(\"Histórico aponta a doação\", () => pm.expect(r.mantimento.historico.pop().doacao_id).to.eql(pm.collectionVariables.get(\"doacao2_id\")));",
+                  "pm.test(\"Doação marcada como enviada\", () => pm.expect(r.doacao.destinacao.abrigo_id).to.eql(pm.collectionVariables.get(\"abrigo_id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Destinar a mesma doação de novo (409)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doacoes/{{doacao2_id}}/destinar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doacoes",
+                "{{doacao2_id}}",
+                "destinar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abrigo_id\": \"{{abrigo2_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir abrigo com estoque (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/abrigos/{{abrigo_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "abrigos",
+                "{{abrigo_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Abrigo continua existindo\", () => pm.sendRequest(pm.collectionVariables.get(\"baseUrl\") + \"/abrigos/\" + pm.collectionVariables.get(\"abrigo_id\"), (e, r) => pm.expect(r.code).to.eql(200)));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
