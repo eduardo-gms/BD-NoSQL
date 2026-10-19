@@ -21,6 +21,7 @@
       <button class="nav-item" data-view="doacoes" id="nav-doacoes">Doações</button>
       <button class="nav-item" data-view="mantimentos" id="nav-mantimentos">Mantimentos</button>
       <button class="nav-item" data-view="escassez" id="nav-escassez">Escassez <em class="nav-badge" id="badge-escassez">0</em></button>
+      <button class="nav-item" data-view="relatorios" id="nav-relatorios">Relatório</button>
     </nav>
 
     <div class="api-box">
@@ -123,6 +124,54 @@
     <section class="view" id="view-escassez">
       <p class="muted small" style="margin-bottom:14px">Abrigos com necessidades urgentes cadastradas ou com algum mantimento abaixo da quantidade mínima.</p>
       <div class="cards" id="escassez-list"></div>
+    </section>
+
+    <!-- Relatórios -->
+    <section class="view" id="view-relatorios">
+      <p class="muted small" style="margin-bottom:14px">Visão geral para apoiar decisões na operação de resgate e nos abrigos.</p>
+      <div class="stats" id="relatorios-stats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Necessidades médicas por abrigo</h2>
+          </div>
+          <p class="muted small">Onde enviar medicamentos específicos, conforme o que cada abrigo precisa.</p>
+          <div class="table-wrap" style="margin-top:12px">
+            <table class="table">
+              <thead><tr><th>Abrigo</th><th>Medicamento</th><th>Pessoas</th></tr></thead>
+              <tbody id="rel-medicas"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Escassez de suprimentos</h2>
+          </div>
+          <p class="muted small">Itens mais pedidos com urgência pelos abrigos.</p>
+          <div class="table-wrap" style="margin-top:12px">
+            <table class="table">
+              <thead><tr><th>Item necessário</th><th>Abrigos pedindo</th></tr></thead>
+              <tbody id="rel-escassez"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:16px">
+        <div class="card">
+          <div class="card-head">
+            <h2>Abrigos críticos / superlotados</h2>
+          </div>
+          <p class="muted small">Abrigos quase lotados ou já superlotados — priorize o redirecionamento de pessoas.</p>
+          <div id="rel-ocupacao" class="ocupacao-list" style="margin-top:12px"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Triagem de cadastros</h2>
+          </div>
+          <p class="muted small">Pessoas cadastradas às pressas, ainda sem nome completo ou contato de emergência.</p>
+          <div id="rel-triagem" style="margin-top:12px"></div>
+        </div>
+      </div>
     </section>
   </main>
 

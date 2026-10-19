@@ -28,7 +28,7 @@ app = FastAPI(
     description=(
         "Módulo 1: Cadastro de pessoas resgatadas, gestão de abrigos e vínculo entre eles.\n"
         "Módulo 2: Logística de doações e controle de estoque de mantimentos nos abrigos.\n"
-        "Módulo 3: Relatórios sobre necessidades médicas, suprimentos, ocupação e cadastros."
+        "Módulo 3: Relatório sobre necessidades médicas, suprimentos, ocupação e cadastros."
     ),
     version="0.2.0",
 )

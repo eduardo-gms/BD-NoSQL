@@ -79,47 +79,58 @@ def relatorio_escassez_suprimentos() -> list[dict[str, Any]]:
 
 def relatorio_ocupacao_abrigos() -> list[dict[str, Any]]:
     """
-    Calcula a taxa de ocupação dos abrigos e lista os mais críticos (taxa > 90% ou Superlotados).
+    Calcula a taxa de ocupação dos abrigos e lista os mais críticos (taxa >= 90% ou Superlotados).
+
+    Usa capacidade_maxima quando existir; senão, capacidade_estimada (mesma lógica do painel).
     """
     pipeline = [
-        # Filtra abrigos que tem capacidade máxima e ocupação atual
+        # Precisa ter ocupação e alguma capacidade informada
         {"$match": {
-            "capacidade_maxima": {"$exists": True},
-            "ocupacao_atual": {"$exists": True}
+            "ocupacao_atual": {"$exists": True, "$ne": None},
+            "$or": [
+                {"capacidade_maxima": {"$exists": True, "$ne": None, "$gt": 0}},
+                {"capacidade_estimada": {"$exists": True, "$ne": None, "$gt": 0}},
+            ],
         }},
-        
-        # Calcula a taxa de ocupação
+
+        # Capacidade efetiva: oficial ou estimada
+        {"$addFields": {
+            "capacidade_efetiva": {
+                "$ifNull": ["$capacidade_maxima", "$capacidade_estimada"]
+            }
+        }},
+
+        # Taxa de ocupação (%)
         {"$addFields": {
             "taxa_ocupacao_percentual": {
                 "$multiply": [
-                    {"$divide": ["$ocupacao_atual", "$capacidade_maxima"]}, 
-                    100
+                    {"$divide": ["$ocupacao_atual", "$capacidade_efetiva"]},
+                    100,
                 ]
             }
         }},
-        
-        # Traz abrigos com mais de 90% de ocupação OU que estejam marcados como 'Superlotado'
+
+        # Críticos: ocupação alta OU status Superlotado / lotado
         {"$match": {
             "$or": [
                 {"taxa_ocupacao_percentual": {"$gte": 90}},
-                {"status": "Superlotado"}
+                {"status": {"$regex": "^superlotado$", "$options": "i"}},
+                {"status": {"$regex": "^lotado$", "$options": "i"}},
             ]
         }},
-        
-        # Ordena pelos mais lotados primeiro
+
         {"$sort": {"taxa_ocupacao_percentual": -1}},
-        
-        # Deixa apenas os campos essenciais no retorno
+
         {"$project": {
             "_id": 0,
             "nome": 1,
             "taxa_ocupacao_percentual": {"$round": ["$taxa_ocupacao_percentual", 2]},
             "ocupacao_atual": 1,
-            "capacidade_maxima": 1,
-            "status": 1
-        }}
+            "capacidade_maxima": "$capacidade_efetiva",
+            "status": 1,
+        }},
     ]
-    
+
     return list(abrigos_collection().aggregate(pipeline))
 
 

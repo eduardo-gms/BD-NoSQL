@@ -2,7 +2,7 @@
 CRUD de Abrigos — foco em status e contagem de ocupação.
 """
 
-from typing import Any
+from typing import Any, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ReturnDocument
@@ -37,7 +37,7 @@ def buscar_abrigo(abrigo_id: str) -> dict[str, Any]:
     return abrigo_to_dict(doc)
 
 
-def listar_abrigos(status: str | None = None) -> list[dict[str, Any]]:
+def listar_abrigos(status: Optional[str] = None) -> list[dict[str, Any]]:
     """Lista todos os abrigos (opcionalmente filtrando por status exato)."""
     filtro: dict[str, Any] = {}
     if status:

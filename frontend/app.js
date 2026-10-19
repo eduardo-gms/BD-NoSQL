@@ -1,5 +1,5 @@
 // SOS Abrigos - interface web (Integrante 6)
-// Consome a API FastAPI dos módulos 1 e 2, sem framework.
+// Consome a API FastAPI dos módulos 1, 2 e 3 (relatórios / Data Analyst).
 
 // Configuração da API
 const DEFAULT_API =
@@ -16,6 +16,12 @@ const state = {
   doacoes: [],
   mantimentos: [],
   escassez: [],
+  relatorios: {
+    medicas: [],
+    escassez: [],
+    ocupacao: [],
+    triagem: null,
+  },
   highlight: null,
   view: "painel",
   logCount: 0,
@@ -232,6 +238,7 @@ const VIEWS = {
   doacoes: ["Doações", "Itens recebidos"],
   mantimentos: ["Mantimentos", "Estoque por abrigo"],
   escassez: ["Escassez", "Abrigos que precisam de reposição"],
+  relatorios: ["Relatório", "Indicadores para a operação"],
 };
 
 function go(view) {
@@ -266,7 +273,30 @@ async function loadAll() {
 
   fillAbrigoSelects();
   await loadPessoas();
+  await loadRelatorios();
   renderAll();
+}
+
+async function loadRelatorios() {
+  const [medicas, escassez, ocupacao, triagem] = await Promise.allSettled([
+    api("GET", "/relatorios/necessidades-medicas"),
+    api("GET", "/relatorios/escassez-suprimentos"),
+    api("GET", "/relatorios/ocupacao-abrigos"),
+    api("GET", "/relatorios/triagem-cadastros"),
+  ]);
+  state.relatorios.medicas = medicas.status === "fulfilled" ? medicas.value || [] : [];
+  state.relatorios.escassez = escassez.status === "fulfilled" ? escassez.value || [] : [];
+  state.relatorios.ocupacao = ocupacao.status === "fulfilled" ? ocupacao.value || [] : [];
+  state.relatorios.triagem = triagem.status === "fulfilled" ? triagem.value || null : null;
+  const falhas = [
+    ["necessidades médicas", medicas],
+    ["escassez", escassez],
+    ["ocupação", ocupacao],
+    ["triagem", triagem],
+  ].filter(([, r]) => r.status === "rejected");
+  if (falhas.length) {
+    toast("Falha em relatório(s): " + falhas.map(([n, r]) => `${n} (${r.reason.message})`).join("; "), "error");
+  }
 }
 
 async function reload(kind) {
@@ -333,6 +363,7 @@ function renderAll() {
   renderDoacoes();
   renderMantimentos();
   renderEscassez();
+  renderRelatorios();
   const b = $("#badge-escassez");
   b.textContent = state.escassez.length;
   b.dataset.zero = state.escassez.length ? "0" : "1";
@@ -341,8 +372,10 @@ function renderAll() {
 function renderOffline() {
   const msg = `<div class="empty">Sem resposta de <code>${esc(API)}</code>.<br><br>
     Inicie o backend com <code>uvicorn backend.main:app --reload</code> e clique em <b>Atualizar</b>.</div>`;
-  ["#stats", "#pessoas-list", "#abrigos-list", "#mant-list", "#escassez-list"].forEach((s) => ($(s).innerHTML = msg));
+  ["#stats", "#pessoas-list", "#abrigos-list", "#mant-list", "#escassez-list", "#relatorios-stats", "#rel-ocupacao", "#rel-triagem"].forEach((s) => ($(s).innerHTML = msg));
   $("#doacoes-list").innerHTML = `<tr><td colspan="8">${msg}</td></tr>`;
+  $("#rel-medicas").innerHTML = `<tr><td colspan="3">${msg}</td></tr>`;
+  $("#rel-escassez").innerHTML = `<tr><td colspan="2">${msg}</td></tr>`;
   $("#ocupacao-list").innerHTML = "";
   $("#schema-profiles").innerHTML = "";
 }
@@ -1216,6 +1249,83 @@ $("#escassez-list").addEventListener("click", async (e) => {
     }
   } catch (err) { toast(err.message, "error"); }
 });
+
+// ---------- Relatórios (Data Analyst / Aggregation) ----------
+function labelAbrigoRelatorio(abrigoRef) {
+  if (!abrigoRef || abrigoRef === "Sem abrigo vinculado") return "Sem abrigo vinculado";
+  return nomeAbrigo(abrigoRef) || String(abrigoRef);
+}
+
+function renderRelatorios() {
+  const { medicas, escassez, ocupacao, triagem } = state.relatorios;
+  const totalMed = medicas.reduce((s, r) => s + (r.quantidade_pessoas || 0), 0);
+  const totalCriticos = ocupacao.length;
+  const incompletos = triagem
+    ? (triagem.sem_nome_completo || 0) + (triagem.sem_contato_emergencia || 0)
+    : 0;
+
+  $("#relatorios-stats").innerHTML = [
+    [totalMed, "Demandas de medicação", "var(--blue)"],
+    [escassez.length, "Tipos de item em falta", "var(--amber)"],
+    [totalCriticos, "Abrigos críticos", "var(--red)"],
+    [triagem?.total_resgatados ?? "—", "Total de resgatados", "var(--green)"],
+    [incompletos, "Sinais de cadastro incompleto", "var(--primary)"],
+  ].map(([v, l, c]) => `
+    <div class="stat" style="--c:${c};cursor:default">
+      <div class="value">${v}</div><div class="label">${l}</div>
+    </div>`).join("");
+
+  $("#rel-medicas").innerHTML = medicas.length
+    ? medicas.map((r) => `<tr>
+        <td>${esc(labelAbrigoRelatorio(r.abrigo))}</td>
+        <td><span class="tag blue">${esc(r.medicamento)}</span></td>
+        <td><strong>${r.quantidade_pessoas}</strong></td>
+      </tr>`).join("")
+    : `<tr><td colspan="3">${empty("Nenhuma necessidade médica agregada.")}</td></tr>`;
+
+  $("#rel-escassez").innerHTML = escassez.length
+    ? escassez.map((r) => `<tr>
+        <td>${esc(r.item_necessario)}</td>
+        <td><strong>${r.abrigos_solicitantes}</strong> abrigo(s)</td>
+      </tr>`).join("")
+    : `<tr><td colspan="2">${empty("Nenhuma necessidade urgente agregada.")}</td></tr>`;
+
+  $("#rel-ocupacao").innerHTML = ocupacao.length
+    ? ocupacao.map((a) => {
+      const pct = Math.round(a.taxa_ocupacao_percentual ?? 0);
+      const cls = pct >= 100 ? "full" : pct >= 90 ? "warn" : "";
+      return `<div class="ocupacao-row">
+        <div class="top"><span>${esc(a.nome)} ${a.status ? `<span class="tag ${statusClass(a.status)}">${esc(a.status)}</span>` : ""}</span>
+        <span>${a.ocupacao_atual}/${a.capacidade_maxima} · ${pct}%</span></div>
+        <div class="bar ${cls}"><i style="width:${Math.min(pct, 100)}%"></i></div>
+      </div>`;
+    }).join("")
+    : empty("Nenhum abrigo crítico no momento.");
+
+  if (!triagem) {
+    $("#rel-triagem").innerHTML = empty("Triagem indisponível.");
+    return;
+  }
+  const total = triagem.total_resgatados || 0;
+  const semNome = triagem.sem_nome_completo || 0;
+  const semContato = triagem.sem_contato_emergencia || 0;
+  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+  $("#rel-triagem").innerHTML = `
+    <div class="triagem-grid">
+      <div class="triagem-card">
+        <div class="value">${semNome}</div>
+        <div class="label">Sem nome completo</div>
+        <div class="bar warn"><i style="width:${pct(semNome)}%"></i></div>
+        <div class="muted small">${pct(semNome)}% dos ${total} resgatados</div>
+      </div>
+      <div class="triagem-card">
+        <div class="value">${semContato}</div>
+        <div class="label">Sem contato de emergência</div>
+        <div class="bar full"><i style="width:${pct(semContato)}%"></i></div>
+        <div class="muted small">${pct(semContato)}% dos ${total} resgatados</div>
+      </div>
+    </div>`;
+}
 
 // ---------- Eventos globais ----------
 function copyId(id) {
