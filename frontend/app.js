@@ -17,6 +17,9 @@ const state = {
   mantimentos: [],
   escassez: [],
   relatorios: {
+    resumo: null,
+    semAbrigo: [],
+    abrigosEscassez: [],
     medicas: [],
     escassez: [],
     ocupacao: [],
@@ -241,12 +244,20 @@ const VIEWS = {
   relatorios: ["Relatório", "Indicadores para a operação"],
 };
 
-function go(view) {
+async function go(view) {
   state.view = view;
   $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
   $("#view-title").textContent = VIEWS[view][0];
   $("#view-subtitle").textContent = VIEWS[view][1];
+  if (view === "relatorios") {
+    try {
+      await loadRelatorios();
+      renderRelatorios();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  }
 }
 
 // ---------- Carregamento de dados ----------
@@ -273,24 +284,35 @@ async function loadAll() {
 
   fillAbrigoSelects();
   await loadPessoas();
-  await loadRelatorios();
+  if (state.view === "relatorios") await loadRelatorios();
   renderAll();
 }
 
 async function loadRelatorios() {
-  const [medicas, escassez, ocupacao, triagem] = await Promise.allSettled([
-    api("GET", "/relatorios/necessidades-medicas"),
-    api("GET", "/relatorios/escassez-suprimentos"),
-    api("GET", "/relatorios/ocupacao-abrigos"),
-    api("GET", "/relatorios/triagem-cadastros"),
-  ]);
+  // Toda a aba Relatórios consome apenas /relatorios/*
+  const [resumo, semAbrigo, abrigosEscassez, medicas, escassez, ocupacao, triagem] =
+    await Promise.allSettled([
+      api("GET", "/relatorios/resumo"),
+      api("GET", "/relatorios/pessoas-sem-abrigo"),
+      api("GET", "/relatorios/abrigos-escassez"),
+      api("GET", "/relatorios/necessidades-medicas"),
+      api("GET", "/relatorios/escassez-suprimentos"),
+      api("GET", "/relatorios/ocupacao-abrigos"),
+      api("GET", "/relatorios/triagem-cadastros"),
+    ]);
+  state.relatorios.resumo = resumo.status === "fulfilled" ? resumo.value || null : null;
+  state.relatorios.semAbrigo = semAbrigo.status === "fulfilled" ? semAbrigo.value || [] : [];
+  state.relatorios.abrigosEscassez = abrigosEscassez.status === "fulfilled" ? abrigosEscassez.value || [] : [];
   state.relatorios.medicas = medicas.status === "fulfilled" ? medicas.value || [] : [];
   state.relatorios.escassez = escassez.status === "fulfilled" ? escassez.value || [] : [];
   state.relatorios.ocupacao = ocupacao.status === "fulfilled" ? ocupacao.value || [] : [];
   state.relatorios.triagem = triagem.status === "fulfilled" ? triagem.value || null : null;
   const falhas = [
+    ["resumo", resumo],
+    ["pessoas sem abrigo", semAbrigo],
+    ["itens em falta", abrigosEscassez],
     ["necessidades médicas", medicas],
-    ["escassez", escassez],
+    ["itens pedidos", escassez],
     ["ocupação", ocupacao],
     ["triagem", triagem],
   ].filter(([, r]) => r.status === "rejected");
@@ -309,6 +331,7 @@ async function reload(kind) {
   tasks.push(api("GET", "/mantimentos/abrigos-escassez").then((d) => (state.escassez = d)));
   await Promise.allSettled(tasks);
   if (kind.includes("pessoas") || kind.includes("abrigos")) await loadPessoas();
+  if (state.view === "relatorios") await loadRelatorios();
   fillAbrigoSelects();
   renderAll();
 }
@@ -372,10 +395,11 @@ function renderAll() {
 function renderOffline() {
   const msg = `<div class="empty">Sem resposta de <code>${esc(API)}</code>.<br><br>
     Inicie o backend com <code>uvicorn backend.main:app --reload</code> e clique em <b>Atualizar</b>.</div>`;
-  ["#stats", "#pessoas-list", "#abrigos-list", "#mant-list", "#escassez-list", "#relatorios-stats", "#rel-ocupacao", "#rel-triagem"].forEach((s) => ($(s).innerHTML = msg));
+  ["#stats", "#pessoas-list", "#abrigos-list", "#mant-list", "#escassez-list", "#relatorios-stats", "#rel-ocupacao", "#rel-triagem", "#rel-abrigos-escassez"].forEach((s) => ($(s).innerHTML = msg));
   $("#doacoes-list").innerHTML = `<tr><td colspan="8">${msg}</td></tr>`;
   $("#rel-medicas").innerHTML = `<tr><td colspan="3">${msg}</td></tr>`;
   $("#rel-escassez").innerHTML = `<tr><td colspan="2">${msg}</td></tr>`;
+  $("#rel-sem-abrigo").innerHTML = `<tr><td colspan="3">${msg}</td></tr>`;
   $("#ocupacao-list").innerHTML = "";
   $("#schema-profiles").innerHTML = "";
 }
@@ -395,10 +419,10 @@ function markNew(container) {
 }
 
 // ---------- Painel ----------
-function renderPainel() {
+function statsOperacao() {
   const semAbrigo = state.pessoas.filter((p) => !p.abrigo_atual).length;
   const baixo = state.mantimentos.filter((m) => m.quantidade_minima != null && m.quantidade < m.quantidade_minima).length;
-  const stats = [
+  return [
     [state.pessoas.length, "Pessoas resgatadas", "var(--blue)", "pessoas"],
     [semAbrigo, "Sem abrigo", "var(--amber)", "pessoas"],
     [state.abrigos.length, "Abrigos", "var(--green)", "abrigos"],
@@ -406,17 +430,25 @@ function renderPainel() {
     [state.mantimentos.length, `Itens em estoque${baixo ? ` (${baixo} baixo)` : ""}`, "var(--muted)", "mantimentos"],
     [state.escassez.length, "Abrigos em escassez", "var(--red)", "escassez"],
   ];
-  $("#stats").innerHTML = stats.map(([v, l, c, view]) => `
-    <div class="stat" style="--c:${c}" data-go="${view}">
-      <div class="value">${v}</div><div class="label">${l}</div>
-    </div>`).join("");
-  $$("#stats .stat").forEach((s) => s.addEventListener("click", () => {
+}
+
+function bindStatsClick(container) {
+  $$(".stat[data-go]", container).forEach((s) => s.addEventListener("click", () => {
     if (s.dataset.go === "pessoas" && s.querySelector(".label").textContent === "Sem abrigo") {
       $("#pessoas-filtro").value = "null";
       loadPessoas().then(renderPessoas);
     }
     go(s.dataset.go);
   }));
+}
+
+function renderPainel() {
+  const stats = statsOperacao();
+  $("#stats").innerHTML = stats.map(([v, l, c, view]) => `
+    <div class="stat" style="--c:${c}" data-go="${view}">
+      <div class="value">${v}</div><div class="label">${l}</div>
+    </div>`).join("");
+  bindStatsClick($("#stats"));
 
   // Ocupação
   const comCap = state.abrigos
@@ -1257,36 +1289,71 @@ function labelAbrigoRelatorio(abrigoRef) {
 }
 
 function renderRelatorios() {
-  const { medicas, escassez, ocupacao, triagem } = state.relatorios;
-  const totalMed = medicas.reduce((s, r) => s + (r.quantidade_pessoas || 0), 0);
-  const totalCriticos = ocupacao.length;
-  const incompletos = triagem
-    ? (triagem.sem_nome_completo || 0) + (triagem.sem_contato_emergencia || 0)
-    : 0;
+  const {
+    resumo, semAbrigo, abrigosEscassez,
+    medicas, escassez, ocupacao, triagem,
+  } = state.relatorios;
 
-  $("#relatorios-stats").innerHTML = [
-    [totalMed, "Demandas de medicação", "var(--blue)"],
-    [escassez.length, "Tipos de item em falta", "var(--amber)"],
-    [totalCriticos, "Abrigos críticos", "var(--red)"],
-    [triagem?.total_resgatados ?? "—", "Total de resgatados", "var(--green)"],
-    [incompletos, "Sinais de cadastro incompleto", "var(--primary)"],
-  ].map(([v, l, c]) => `
+  const linhasEscassez = [];
+  abrigosEscassez.forEach((a) => {
+    (a.itens_estoque_baixo || []).forEach((m) => {
+      const pctBar = m.quantidade_minima
+        ? Math.min(Math.round((m.quantidade / m.quantidade_minima) * 100), 100)
+        : 0;
+      linhasEscassez.push(`<div class="ocupacao-row">
+        <div class="top">
+          <span>${esc(a.nome)} · ${esc(m.item)}</span>
+          <span>${m.quantidade} / ${m.quantidade_minima}${m.unidade ? ` ${esc(m.unidade)}` : ""}</span>
+        </div>
+        <div class="bar full"><i style="width:${pctBar}%"></i></div>
+      </div>`);
+    });
+  });
+
+  // Resumo compacto (detalhes ficam nas listas abaixo)
+  const r = resumo || {};
+  const stats = [
+    [r.pessoas_resgatadas ?? "—", "Pessoas resgatadas", "var(--blue)"],
+    [semAbrigo.length || r.sem_abrigo || 0, "Sem abrigo", "var(--amber)"],
+    [linhasEscassez.length, "Itens em falta", "var(--red)"],
+    [ocupacao.length, "Abrigos críticos", "var(--red)"],
+    [triagem ? (triagem.sem_nome_completo || 0) + (triagem.sem_contato_emergencia || 0) : "—", "Cadastros incompletos", "var(--primary)"],
+  ];
+  $("#relatorios-stats").innerHTML = stats.map(([v, l, c]) => `
     <div class="stat" style="--c:${c};cursor:default">
       <div class="value">${v}</div><div class="label">${l}</div>
     </div>`).join("");
 
+  $("#rel-sem-abrigo-count").textContent = `${semAbrigo.length} pessoa(s)`;
+  $("#rel-sem-abrigo").innerHTML = semAbrigo.length
+    ? semAbrigo.map((p) => `<tr>
+        <td>${esc(p.nome)}</td>
+        <td>${esc(p.local_resgate || "—")}</td>
+        <td><span class="tag amber">${esc(p.tipo_identificacao || "—")}</span></td>
+      </tr>`).join("")
+    : `<tr><td colspan="3">${empty("Todas as pessoas já estão em um abrigo.")}</td></tr>`;
+
+  $("#rel-abrigos-escassez-count").textContent = `${linhasEscassez.length} item(ns)`;
+  $("#rel-abrigos-escassez").innerHTML = linhasEscassez.length
+    ? linhasEscassez.join("")
+    : empty("Nenhum item em falta no momento.");
+
   $("#rel-medicas").innerHTML = medicas.length
-    ? medicas.map((r) => `<tr>
-        <td>${esc(labelAbrigoRelatorio(r.abrigo))}</td>
-        <td><span class="tag blue">${esc(r.medicamento)}</span></td>
-        <td><strong>${r.quantidade_pessoas}</strong></td>
+    ? medicas.map((row) => `<tr>
+        <td>${esc(labelAbrigoRelatorio(row.abrigo))}</td>
+        <td><span class="tag blue">${esc(row.medicamento)}</span></td>
+        <td><strong>${row.quantidade_pessoas}</strong></td>
       </tr>`).join("")
     : `<tr><td colspan="3">${empty("Nenhuma necessidade médica agregada.")}</td></tr>`;
 
   $("#rel-escassez").innerHTML = escassez.length
-    ? escassez.map((r) => `<tr>
-        <td>${esc(r.item_necessario)}</td>
-        <td><strong>${r.abrigos_solicitantes}</strong> abrigo(s)</td>
+    ? escassez.map((row, i) => `<tr>
+        <td>${esc(row.item_necessario)}</td>
+        <td>
+          <button type="button" class="btn btn-sm btn-teal" data-pedidos="${i}">
+            ${row.abrigos_solicitantes} abrigo(s)
+          </button>
+        </td>
       </tr>`).join("")
     : `<tr><td colspan="2">${empty("Nenhuma necessidade urgente agregada.")}</td></tr>`;
 
@@ -1304,28 +1371,41 @@ function renderRelatorios() {
 
   if (!triagem) {
     $("#rel-triagem").innerHTML = empty("Triagem indisponível.");
-    return;
+  } else {
+    const total = triagem.total_resgatados || 0;
+    const semNome = triagem.sem_nome_completo || 0;
+    const semContato = triagem.sem_contato_emergencia || 0;
+    const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+    $("#rel-triagem").innerHTML = `
+      <div class="triagem-grid">
+        <div class="triagem-card">
+          <div class="value">${semNome}</div>
+          <div class="label">Sem nome completo</div>
+          <div class="bar warn"><i style="width:${pct(semNome)}%"></i></div>
+          <div class="muted small">${pct(semNome)}% dos ${total} resgatados</div>
+        </div>
+        <div class="triagem-card">
+          <div class="value">${semContato}</div>
+          <div class="label">Sem contato de emergência</div>
+          <div class="bar full"><i style="width:${pct(semContato)}%"></i></div>
+          <div class="muted small">${pct(semContato)}% dos ${total} resgatados</div>
+        </div>
+      </div>`;
   }
-  const total = triagem.total_resgatados || 0;
-  const semNome = triagem.sem_nome_completo || 0;
-  const semContato = triagem.sem_contato_emergencia || 0;
-  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
-  $("#rel-triagem").innerHTML = `
-    <div class="triagem-grid">
-      <div class="triagem-card">
-        <div class="value">${semNome}</div>
-        <div class="label">Sem nome completo</div>
-        <div class="bar warn"><i style="width:${pct(semNome)}%"></i></div>
-        <div class="muted small">${pct(semNome)}% dos ${total} resgatados</div>
-      </div>
-      <div class="triagem-card">
-        <div class="value">${semContato}</div>
-        <div class="label">Sem contato de emergência</div>
-        <div class="bar full"><i style="width:${pct(semContato)}%"></i></div>
-        <div class="muted small">${pct(semContato)}% dos ${total} resgatados</div>
-      </div>
-    </div>`;
 }
+
+$("#rel-escassez").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-pedidos]");
+  if (!btn) return;
+  const row = state.relatorios.escassez[+btn.dataset.pedidos];
+  if (!row) return;
+  const abrigos = row.abrigos || [];
+  openModal(`Quem pediu: ${row.item_necessario}`, `
+    <p class="muted small">${abrigos.length} abrigo(s) com este item em necessidades urgentes.</p>
+    <ul class="rel-lista-abrigos">
+      ${abrigos.map((a) => `<li>${esc(a.nome || "Abrigo sem nome")}</li>`).join("") || "<li>Nenhum abrigo encontrado.</li>"}
+    </ul>`);
+});
 
 // ---------- Eventos globais ----------
 function copyId(id) {

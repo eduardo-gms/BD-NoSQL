@@ -130,13 +130,38 @@
     <section class="view" id="view-relatorios">
       <p class="muted small" style="margin-bottom:14px">Visão geral para apoiar decisões na operação de resgate e nos abrigos.</p>
       <div class="stats" id="relatorios-stats"></div>
+
       <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Pessoas sem abrigo</h2>
+            <span class="muted small" id="rel-sem-abrigo-count"></span>
+          </div>
+          <p class="muted small">Resgatados que ainda precisam ser encaminhados a um abrigo.</p>
+          <div class="table-wrap" style="margin-top:12px;max-height:360px;overflow:auto">
+            <table class="table">
+              <thead><tr><th>Nome</th><th>Local do resgate</th><th>Cadastro</th></tr></thead>
+              <tbody id="rel-sem-abrigo"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Itens em falta</h2>
+            <span class="muted small" id="rel-abrigos-escassez-count"></span>
+          </div>
+          <p class="muted small">Estoque abaixo do mínimo ou pedidos urgentes ainda sem quantidade suficiente.</p>
+          <div id="rel-abrigos-escassez" class="ocupacao-list" style="margin-top:12px;max-height:360px;overflow:auto"></div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:16px">
         <div class="card">
           <div class="card-head">
             <h2>Necessidades médicas por abrigo</h2>
           </div>
           <p class="muted small">Onde enviar medicamentos específicos, conforme o que cada abrigo precisa.</p>
-          <div class="table-wrap" style="margin-top:12px">
+          <div class="table-wrap" style="margin-top:12px;max-height:360px;overflow:auto">
             <table class="table">
               <thead><tr><th>Abrigo</th><th>Medicamento</th><th>Pessoas</th></tr></thead>
               <tbody id="rel-medicas"></tbody>
@@ -145,7 +170,7 @@
         </div>
         <div class="card">
           <div class="card-head">
-            <h2>Escassez de suprimentos</h2>
+            <h2>Itens mais pedidos</h2>
           </div>
           <p class="muted small">Itens mais pedidos com urgência pelos abrigos.</p>
           <div class="table-wrap" style="margin-top:12px">
