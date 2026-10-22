@@ -23,16 +23,6 @@
       <button class="nav-item" data-view="escassez" id="nav-escassez">Escassez <em class="nav-badge" id="badge-escassez">0</em></button>
       <button class="nav-item" data-view="relatorios" id="nav-relatorios">Relatório</button>
     </nav>
-
-    <div class="api-box">
-      <label for="api-url">URL da API</label>
-      <div class="api-row">
-        <input id="api-url" type="text" spellcheck="false" />
-        <button class="btn btn-sm" id="btn-save-api" title="Salvar e reconectar">OK</button>
-      </div>
-      <div class="api-status" id="api-status"><i class="dot"></i><span>Verificando...</span></div>
-      <a class="docs-link" id="docs-link" href="#" target="_blank" rel="noopener">Documentação da API (/docs)</a>
-    </div>
   </aside>
 
   <main class="main">
@@ -40,10 +30,6 @@
       <div>
         <h1 id="view-title">Painel geral</h1>
         <p id="view-subtitle">Resumo da operação</p>
-      </div>
-      <div class="topbar-actions">
-        <button class="btn" id="btn-refresh">Atualizar</button>
-        <button class="btn" id="btn-console">Requisições <em class="nav-badge" id="badge-console">0</em></button>
       </div>
     </header>
 
@@ -199,18 +185,6 @@
       </div>
     </section>
   </main>
-
-  <!-- Log de requisições -->
-  <aside class="console" id="console">
-    <div class="console-head">
-      <strong>Requisições HTTP</strong>
-      <div>
-        <button class="btn btn-sm" id="btn-clear-console">Limpar</button>
-        <button class="btn btn-sm" id="btn-close-console">Fechar</button>
-      </div>
-    </div>
-    <ul class="console-list" id="console-list"></ul>
-  </aside>
 
   <div class="modal-backdrop" id="modal-backdrop">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">

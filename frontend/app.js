@@ -7,7 +7,7 @@ const DEFAULT_API =
     ? location.origin // servido pelo próprio FastAPI em /app
     : "http://localhost:8000";
 
-let API = localStorage.getItem("apiUrl") || DEFAULT_API;
+let API = DEFAULT_API;
 
 const state = {
   abrigos: [],
@@ -27,7 +27,6 @@ const state = {
   },
   highlight: null,
   view: "painel",
-  logCount: 0,
 };
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -145,11 +144,8 @@ async function api(method, path, body, { log = true } = {}) {
     const text = await res.text();
     try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   } catch (e) {
-    if (log) addLog(method, path, body, "ERR", { erro: "Falha de rede. A API está rodando?" }, performance.now() - t0);
-    setOnline(false);
     throw new Error("Não foi possível conectar à API em " + esc(API));
   }
-  if (log) addLog(method, path, body, res.status, data, performance.now() - t0);
   if (!res.ok) {
     const err = new Error(errorMessage(data, res.status));
     err.status = res.status;
@@ -158,44 +154,11 @@ async function api(method, path, body, { log = true } = {}) {
   return data;
 }
 
-function addLog(method, path, body, status, data, ms) {
-  state.logCount++;
-  const badge = $("#badge-console");
-  badge.textContent = state.logCount;
-  badge.dataset.zero = "0";
-  const ok = typeof status === "number" && status < 400;
-  const li = document.createElement("li");
-  li.innerHTML = `
-    <details class="log">
-      <summary>
-        <span class="method m-${method}">${method}</span>
-        <span class="path" title="${esc(path)}">${esc(path)}</span>
-        <span class="status ${ok ? "ok" : "err"}">${status}</span>
-        <span class="ms">${Math.round(ms)}ms</span>
-      </summary>
-      ${body ? `<div class="muted small" style="padding:0 10px 4px">Corpo enviado:</div><pre class="json">${jsonHTML(body)}</pre>` : ""}
-      <div class="muted small" style="padding:0 10px 4px">Resposta:</div>
-      <pre class="json">${jsonHTML(Array.isArray(data) && data.length > 5 ? [...data.slice(0, 5), `… +${data.length - 5} documentos`] : data)}</pre>
-    </details>`;
-  $("#console-list").prepend(li);
-}
-
-// Status de conexão
-function setOnline(on, texto) {
-  const el = $("#api-status");
-  el.classList.toggle("online", on);
-  el.classList.toggle("offline", !on);
-  $("span", el).textContent = texto || (on ? "Conectado" : "API fora do ar");
-}
-
 async function checkHealth() {
   try {
-    const h = await api("GET", "/health", null, { log: false });
-    setOnline(true, `Banco conectado (${h.banco})`);
+    await api("GET", "/health", null, { log: false });
     return true;
   } catch (err) {
-    // 503 = a API respondeu, mas não conseguiu falar com o MongoDB
-    setOnline(false, err.status === 503 ? "Sem conexão com o banco" : "API fora do ar");
     return false;
   }
 }
@@ -1419,14 +1382,6 @@ function debounce(fn, ms = 250) {
 }
 
 $$(".nav-item").forEach((b) => b.addEventListener("click", () => go(b.dataset.view)));
-$("#btn-refresh").addEventListener("click", () => { state.highlight = null; loadAll(); });
-$("#btn-console").addEventListener("click", () => $("#console").classList.toggle("open"));
-$("#btn-close-console").addEventListener("click", () => $("#console").classList.remove("open"));
-$("#btn-clear-console").addEventListener("click", () => {
-  $("#console-list").innerHTML = "";
-  state.logCount = 0;
-  $("#badge-console").dataset.zero = "1";
-});
 
 $("#modal-close").addEventListener("click", closeModal);
 $("#modal-backdrop").addEventListener("click", (e) => {
@@ -1456,18 +1411,6 @@ $("#mant-abrigo").addEventListener("change", filtrarMant);
 $("#mant-baixo").addEventListener("change", filtrarMant);
 $("#mant-item").addEventListener("keydown", (e) => e.key === "Enter" && filtrarMant());
 
-// Configuração da URL da API
-$("#api-url").value = API;
-$("#docs-link").href = API + "/docs";
-$("#btn-save-api").addEventListener("click", () => {
-  API = $("#api-url").value.trim().replace(/\/+$/, "") || DEFAULT_API;
-  localStorage.setItem("apiUrl", API);
-  $("#api-url").value = API;
-  $("#docs-link").href = API + "/docs";
-  loadAll();
-});
-
 // Inicialização
 $("#stats").innerHTML = Array(6).fill('<div class="skeleton"></div>').join("");
 loadAll();
-setInterval(checkHealth, 15000);

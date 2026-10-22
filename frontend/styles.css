@@ -63,19 +63,6 @@ code { font-family: var(--mono); font-size: .85em; background: #eef0f3; padding:
 .btn .nav-badge { margin-left: 4px; }
 .nav-badge:empty, .nav-badge[data-zero="1"] { display: none; }
 
-.api-box { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid #34444f; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.api-box label { font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; }
-.api-row { display: flex; gap: 6px; }
-.api-row input {
-  flex: 1; min-width: 0; font-family: var(--mono); font-size: .78rem;
-  background: #1a252e; border: 1px solid #3c4d5a; color: #fff; border-radius: 4px; padding: 6px 8px;
-}
-.api-status { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
-.api-status.online .dot { background: #48bb78; }
-.api-status.offline .dot { background: #f56565; }
-.docs-link { font-size: .8rem; color: #90cdf4; }
-
 /* Conteúdo */
 .main { padding: 24px 32px 48px; min-width: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
@@ -213,36 +200,12 @@ code { font-family: var(--mono); font-size: .85em; background: #eef0f3; padding:
 .table tr.new { background: #f3faf6; }
 .table td.actions { white-space: nowrap; text-align: right; }
 
-/* Log de requisições */
-.console {
-  position: fixed; top: 0; right: 0; height: 100vh; width: min(460px, 95vw); z-index: 40;
-  background: #1e272e; color: #d8dee4; border-left: 1px solid #000;
-  display: none; flex-direction: column;
-}
-.console.open { display: flex; }
-.console-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #36424c; }
-.console-head div { display: flex; gap: 6px; }
-.console .btn { background: #2d3943; border-color: #44525e; color: #d8dee4; }
-.console-list { list-style: none; overflow: auto; flex: 1; padding: 8px; display: grid; gap: 4px; align-content: start; }
-.log { border-radius: 3px; border: 1px solid #36424c; font-family: var(--mono); font-size: .75rem; }
-.log summary { cursor: pointer; padding: 7px 9px; display: flex; gap: 8px; align-items: center; list-style: none; }
-.log summary::-webkit-details-marker { display: none; }
-.log .method { font-weight: 700; min-width: 48px; }
-.log .m-GET { color: #63b3ed; } .log .m-POST { color: #68d391; } .log .m-PATCH { color: #f6c35b; } .log .m-DELETE { color: #fc8181; }
-.log .path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.log .status { font-weight: 700; } .log .ok { color: #68d391; } .log .err { color: #fc8181; }
-.log .ms { color: #8795a1; }
-.log .muted { color: #8795a1; }
-.log pre { margin: 0 9px 9px; max-height: 260px; }
-.console pre.json { background: #151c21; border-color: #36424c; color: #d8dee4; }
-
 /* JSON */
 pre.json {
   font-family: var(--mono); font-size: .78rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
   background: #f8f9fa; border: 1px solid var(--border); border-radius: 4px; padding: 10px; overflow: auto;
 }
 .j-key { color: #2c5282; } .j-str { color: #276749; } .j-num { color: #975a16; } .j-bool { color: #97266d; } .j-null { color: var(--muted); }
-.console .j-key { color: #90cdf4; } .console .j-str { color: #9ae6b4; } .console .j-num { color: #fbd38d; } .console .j-bool { color: #fbb6ce; }
 
 /* Modal */
 .modal-backdrop {
