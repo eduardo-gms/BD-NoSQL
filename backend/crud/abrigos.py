@@ -15,6 +15,11 @@ def abrigos_collection():
     return get_collection("abrigos")
 
 
+def _sem_campos_protegidos(dados: dict[str, Any]) -> dict[str, Any]:
+    protegidos = {"id", "_id", "ocupacao_atual"}
+    return {k: v for k, v in dados.items() if k.split(".", 1)[0] not in protegidos}
+
+
 class AbrigoNaoEncontrado(Exception):
     pass
 
@@ -47,7 +52,7 @@ def listar_abrigos(status: Optional[str] = None) -> list[dict[str, Any]]:
 
 def criar_abrigo(dados: dict[str, Any]) -> dict[str, Any]:
     """Cadastra um abrigo novo, com ocupação zerada."""
-    doc = {k: v for k, v in dados.items() if v is not None}
+    doc = {k: v for k, v in _sem_campos_protegidos(dados).items() if v is not None}
     doc["ocupacao_atual"] = 0
     resultado = abrigos_collection().insert_one(doc)
     return buscar_abrigo(str(resultado.inserted_id))
@@ -58,7 +63,7 @@ def atualizar_abrigo(abrigo_id: str, dados: dict[str, Any]) -> dict[str, Any]:
     Edição parcial: campos com valor são gravados ($set) e campos
     enviados como null são removidos ($unset).
     """
-    dados = {k: v for k, v in dados.items() if k not in ("id", "_id", "ocupacao_atual")}
+    dados = _sem_campos_protegidos(dados)
     if dados.get("nome") is None:
         dados.pop("nome", None)  # nome não pode ser removido
     operacao: dict[str, Any] = {}
@@ -105,18 +110,9 @@ def excluir_abrigo(abrigo_id: str) -> dict[str, Any]:
 
 def atualizar_status_abrigo(abrigo_id: str, dados: dict[str, Any]) -> dict[str, Any]:
     """Atualiza status/lotação máxima e quaisquer campos extras (schema-less)."""
+    # Mantém a semântica desta rota: null é ignorado, não remove campos.
     dados = {k: v for k, v in dados.items() if v is not None}
-    if not dados:
-        return buscar_abrigo(abrigo_id)
-
-    doc = abrigos_collection().find_one_and_update(
-        {"_id": _oid(abrigo_id)},
-        {"$set": dados},
-        return_document=ReturnDocument.AFTER,
-    )
-    if not doc:
-        raise AbrigoNaoEncontrado(abrigo_id)
-    return abrigo_to_dict(doc)
+    return atualizar_abrigo(abrigo_id, dados)
 
 
 def reservar_vaga(abrigo_id: str) -> dict[str, Any]:

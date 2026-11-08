@@ -15,6 +15,11 @@ def pessoas_collection():
     return get_collection("pessoas_resgatadas")
 
 
+def _sem_campos_protegidos(dados: dict[str, Any], *, criacao: bool = False) -> dict[str, Any]:
+    protegidos = {"id", "_id"} if criacao else {"id", "_id", "abrigo_atual"}
+    return {k: v for k, v in dados.items() if k.split(".", 1)[0] not in protegidos}
+
+
 class PessoaNaoEncontrada(Exception):
     pass
 
@@ -34,7 +39,7 @@ def cadastrar_pessoa(dados: PessoaCreate) -> dict[str, Any]:
     Se abrigo_atual vier preenchido, incrementa o contador de ocupação
     do abrigo (informativo, não bloqueia).
     """
-    doc = dados.model_dump(exclude_none=True)
+    doc = _sem_campos_protegidos(dados.model_dump(exclude_none=True), criacao=True)
     abrigo_atual = doc.pop("abrigo_atual", None)
 
     if abrigo_atual:
@@ -71,13 +76,16 @@ def atualizar_pessoa(pessoa_id: str, dados: dict[str, Any]) -> dict[str, Any]:
     por aqui (use as rotas de vínculo, que ajustam a ocupação).
     """
     atual = buscar_pessoa(pessoa_id)  # levanta PessoaNaoEncontrada
-    dados = {k: v for k, v in dados.items() if k not in ("id", "_id", "abrigo_atual")}
+    dados = _sem_campos_protegidos(dados)
     definir = {k: v for k, v in dados.items() if v is not None}
     remover = {k: "" for k, v in dados.items() if v is None}
 
     # mesma regra do cadastro: precisa continuar com algum nome ou foto
     resultado = {**{k: v for k, v in atual.items() if k not in remover}, **definir}
-    if not any(resultado.get(k) for k in ("nome", "nome_conhecido", "nome_completo", "foto")):
+    if not any(
+        isinstance(resultado.get(k), str) and resultado[k].strip()
+        for k in ("nome", "nome_conhecido", "nome_completo", "foto")
+    ):
         raise ValueError("A pessoa precisa continuar com algum nome ou foto.")
 
     operacao: dict[str, Any] = {}

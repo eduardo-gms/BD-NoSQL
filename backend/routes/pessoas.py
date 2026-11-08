@@ -1,7 +1,7 @@
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 
-from backend.models.pessoa import PessoaCreate, VincularAbrigoRequest
+from backend.models.pessoa import PessoaCreate, PessoaUpdate, VincularAbrigoRequest
 from backend.crud import pessoas as crud
 from backend.crud.abrigos import AbrigoNaoEncontrado
 
@@ -33,13 +33,13 @@ def listar_pessoas(abrigo_atual: Optional[str] = None):
 
 
 @router.patch("/{pessoa_id}")
-def atualizar_pessoa(pessoa_id: str, dados: dict = Body(...)):
+def atualizar_pessoa(pessoa_id: str, dados: PessoaUpdate):
     """
     Atualização parcial e schema-less de qualquer campo da pessoa.
     Enviar um campo com `null` remove esse campo do documento.
     """
     try:
-        return crud.atualizar_pessoa(pessoa_id, dados)
+        return crud.atualizar_pessoa(pessoa_id, dados.model_dump(exclude_unset=True))
     except crud.PessoaNaoEncontrada:
         raise HTTPException(404, "Pessoa não encontrada.")
     except ValueError as e:

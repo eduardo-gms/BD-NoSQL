@@ -3,10 +3,23 @@ Modelo de Pessoa Resgatada.
 """
 
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class PessoaCreate(BaseModel):
+class CondicoesSaude(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    medicacao_continua: Optional[list[str]] = None
+
+
+class ContatoEmergencia(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    nome: Optional[str] = None
+    telefone: Optional[str] = None
+
+
+class PessoaCampos(BaseModel):
     model_config = ConfigDict(extra="allow")  # aceita qualquer campo adicional
 
     # nomes variam entre perfis gerados pelo povoamento
@@ -17,11 +30,23 @@ class PessoaCreate(BaseModel):
 
     local_resgate: Optional[str] = None
     data_resgate: Optional[str] = None
-    idade: Optional[int] = None
+    idade: Optional[int] = Field(default=None, ge=0)
     cpf: Optional[str] = None
     tipo_sanguineo: Optional[str] = None
-    condicoes_saude: Optional[dict[str, Any]] = None
-    contatos_emergencia: Optional[list[dict[str, Any]]] = None
+    condicoes_saude: Optional[CondicoesSaude] = None
+    contatos_emergencia: Optional[list[ContatoEmergencia]] = None
+
+    @field_validator("nome", "nome_conhecido", "nome_completo", "foto")
+    @classmethod
+    def normalizar_identificacao(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is not None:
+            valor = valor.strip()
+            if not valor:
+                raise ValueError("Nome ou foto não pode conter apenas espaços nem ser vazio; use null para remover.")
+        return valor
+
+
+class PessoaCreate(PessoaCampos):
 
     abrigo_atual: Optional[str] = None  # vínculo opcional já na criação
 
@@ -37,10 +62,8 @@ class PessoaCreate(BaseModel):
         return self
 
 
-class PessoaUpdate(BaseModel):
+class PessoaUpdate(PessoaCampos):
     """Atualização parcial — qualquer subconjunto de campos, inclusive novos."""
-
-    model_config = ConfigDict(extra="allow")
 
 
 class VincularAbrigoRequest(BaseModel):
