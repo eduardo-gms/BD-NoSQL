@@ -2,9 +2,13 @@
 CRUD de Pessoas Resgatadas — cadastro, atualização e vínculo com abrigo.
 """
 
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
+from pymongo.client_session import ClientSession
+from pymongo.read_concern import ReadConcern
+from pymongo.read_preferences import ReadPreference
+from pymongo.write_concern import WriteConcern
 
 from backend.db import get_collection
 from backend.models.pessoa import PessoaCreate, pessoa_to_dict
@@ -31,28 +35,37 @@ def _oid(pessoa_id: str) -> ObjectId:
         raise PessoaNaoEncontrada(f"id inválido: {pessoa_id}")
 
 
+def _em_transacao(operacao: Callable[[ClientSession], dict[str, Any]]) -> dict[str, Any]:
+    """O driver repete a transação em conflitos transitórios e confirma uma vez."""
+    cliente = pessoas_collection().database.client
+    with cliente.start_session() as session:
+        return session.with_transaction(
+            operacao,
+            read_concern=ReadConcern("snapshot"),
+            write_concern=WriteConcern("majority"),
+            read_preference=ReadPreference.PRIMARY,
+        )
+
+
 def cadastrar_pessoa(dados: PessoaCreate) -> dict[str, Any]:
-    """
-    Insere uma pessoa resgatada. Aceita documentos heterogêneos: a única
-    exigência é ter nome ou foto (validado no próprio modelo Pydantic).
+    """Salva a pessoa e, havendo vínculo, incrementa a ocupação atomicamente."""
+    def inserir(session: Optional[ClientSession] = None) -> dict[str, Any]:
+        # Reconstruir a cada tentativa: insert_one pode adicionar _id ao dict.
+        doc = _sem_campos_protegidos(dados.model_dump(exclude_none=True), criacao=True)
+        abrigo_atual = doc.pop("abrigo_atual", None)
+        if abrigo_atual:
+            reservar_vaga(abrigo_atual, session=session)
+            doc["abrigo_atual"] = abrigo_atual
+        resultado = pessoas_collection().insert_one(doc, session=session)
+        return buscar_pessoa(str(resultado.inserted_id), session=session)
 
-    Se abrigo_atual vier preenchido, incrementa o contador de ocupação
-    do abrigo (informativo, não bloqueia).
-    """
-    doc = _sem_campos_protegidos(dados.model_dump(exclude_none=True), criacao=True)
-    abrigo_atual = doc.pop("abrigo_atual", None)
-
-    if abrigo_atual:
-        reservar_vaga(abrigo_atual)  # levanta AbrigoNaoEncontrado se abrigo não existir
-        doc["abrigo_atual"] = abrigo_atual
-
-    resultado = pessoas_collection().insert_one(doc)
-    inserida = pessoas_collection().find_one({"_id": resultado.inserted_id})
-    return pessoa_to_dict(inserida)
+    if dados.abrigo_atual:
+        return _em_transacao(inserir)
+    return inserir()
 
 
-def buscar_pessoa(pessoa_id: str) -> dict[str, Any]:
-    doc = pessoas_collection().find_one({"_id": _oid(pessoa_id)})
+def buscar_pessoa(pessoa_id: str, *, session: Optional[ClientSession] = None) -> dict[str, Any]:
+    doc = pessoas_collection().find_one({"_id": _oid(pessoa_id)}, session=session)
     if not doc:
         raise PessoaNaoEncontrada(pessoa_id)
     return pessoa_to_dict(doc)
@@ -99,42 +112,44 @@ def atualizar_pessoa(pessoa_id: str, dados: dict[str, Any]) -> dict[str, Any]:
 
 
 def vincular_pessoa_abrigo(pessoa_id: str, abrigo_atual: str) -> dict[str, Any]:
-    """
-    Vincula (ou transfere) uma pessoa a um abrigo.
+    """Transfere o vínculo e ajusta as duas ocupações na mesma transação."""
+    def vincular(session: ClientSession) -> dict[str, Any]:
+        # A leitura também fica dentro da tentativa para não reutilizar vínculo antigo.
+        pessoa = buscar_pessoa(pessoa_id, session=session)
+        abrigo_anterior = pessoa.get("abrigo_atual")
+        if abrigo_anterior == abrigo_atual:
+            return pessoa
 
-    1. Incrementa a ocupação do abrigo de destino.
-    2. Se a pessoa já estava em outro abrigo, decrementa a ocupação antiga.
-    3. Atualiza o campo abrigo_atual da pessoa.
-    """
-    pessoa = buscar_pessoa(pessoa_id)  # levanta PessoaNaoEncontrada
-    abrigo_anterior = pessoa.get("abrigo_atual")
+        reservar_vaga(abrigo_atual, session=session)
+        if abrigo_anterior:
+            try:
+                liberar_vaga(abrigo_anterior, session=session)
+            except AbrigoNaoEncontrado:
+                pass  # preserva recuperação de referência antiga inexistente
 
-    if abrigo_anterior == abrigo_atual:
-        return pessoa  # já vinculada, nada a fazer
+        pessoas_collection().update_one(
+            {"_id": _oid(pessoa_id)}, {"$set": {"abrigo_atual": abrigo_atual}},
+            session=session,
+        )
+        return buscar_pessoa(pessoa_id, session=session)
 
-    reservar_vaga(abrigo_atual)  # levanta AbrigoNaoEncontrado se abrigo não existir
-
-    if abrigo_anterior:
-        try:
-            liberar_vaga(abrigo_anterior)
-        except AbrigoNaoEncontrado:
-            pass  # abrigo antigo pode ter sido removido; segue o fluxo
-
-    pessoas_collection().update_one(
-        {"_id": _oid(pessoa_id)}, {"$set": {"abrigo_atual": abrigo_atual}}
-    )
-    return buscar_pessoa(pessoa_id)
+    return _em_transacao(vincular)
 
 
 def desvincular_pessoa(pessoa_id: str) -> dict[str, Any]:
-    pessoa = buscar_pessoa(pessoa_id)
-    abrigo_atual = pessoa.get("abrigo_atual")
-    if abrigo_atual:
-        try:
-            liberar_vaga(abrigo_atual)
-        except AbrigoNaoEncontrado:
-            pass
-        pessoas_collection().update_one(
-            {"_id": _oid(pessoa_id)}, {"$unset": {"abrigo_atual": ""}}
-        )
-    return buscar_pessoa(pessoa_id)
+    """Remove o vínculo e libera a vaga juntos, ou desfaz ambos em caso de erro."""
+    def desvincular(session: ClientSession) -> dict[str, Any]:
+        pessoa = buscar_pessoa(pessoa_id, session=session)
+        abrigo_atual = pessoa.get("abrigo_atual")
+        if abrigo_atual:
+            try:
+                liberar_vaga(abrigo_atual, session=session)
+            except AbrigoNaoEncontrado:
+                pass
+            pessoas_collection().update_one(
+                {"_id": _oid(pessoa_id)}, {"$unset": {"abrigo_atual": ""}},
+                session=session,
+            )
+        return buscar_pessoa(pessoa_id, session=session)
+
+    return _em_transacao(desvincular)

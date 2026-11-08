@@ -6,6 +6,7 @@ from typing import Any, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ReturnDocument
+from pymongo.client_session import ClientSession
 
 from backend.db import get_collection
 from backend.models.abrigo import abrigo_to_dict
@@ -115,7 +116,7 @@ def atualizar_status_abrigo(abrigo_id: str, dados: dict[str, Any]) -> dict[str, 
     return atualizar_abrigo(abrigo_id, dados)
 
 
-def reservar_vaga(abrigo_id: str) -> dict[str, Any]:
+def reservar_vaga(abrigo_id: str, *, session: Optional[ClientSession] = None) -> dict[str, Any]:
     """
     Incrementa ocupacao_atual em 1 — sem checagem de capacidade_maxima.
     Cria o campo com valor 1 se o abrigo ainda não tiver ocupacao_atual
@@ -128,23 +129,25 @@ def reservar_vaga(abrigo_id: str) -> dict[str, Any]:
         {"_id": oid},
         {"$inc": {"ocupacao_atual": 1}},
         return_document=ReturnDocument.AFTER,
+        session=session,
     )
     if not doc:
         raise AbrigoNaoEncontrado(abrigo_id)
     return abrigo_to_dict(doc)
 
 
-def liberar_vaga(abrigo_id: str) -> dict[str, Any]:
+def liberar_vaga(abrigo_id: str, *, session: Optional[ClientSession] = None) -> dict[str, Any]:
     """Decrementa ocupacao_atual em 1, sem deixar ir abaixo de zero."""
     oid = _oid(abrigo_id)
     doc = abrigos_collection().find_one_and_update(
         {"_id": oid, "ocupacao_atual": {"$gt": 0}},
         {"$inc": {"ocupacao_atual": -1}},
         return_document=ReturnDocument.AFTER,
+        session=session,
     )
     if doc:
         return abrigo_to_dict(doc)
-    existente = abrigos_collection().find_one({"_id": oid})
+    existente = abrigos_collection().find_one({"_id": oid}, session=session)
     if not existente:
         raise AbrigoNaoEncontrado(abrigo_id)
     return abrigo_to_dict(existente)  # já estava em zero, nada a fazer

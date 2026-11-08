@@ -3,10 +3,11 @@ Modelo de Abrigo.
 """
 
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+from backend.models.campos_documento import DocumentoComChavesValidas
 
 
-class AbrigoCreate(BaseModel):
+class AbrigoCreate(DocumentoComChavesValidas):
     """Cadastro de abrigo. Só o nome é obrigatório; aceita campos extras."""
 
     model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
@@ -20,7 +21,7 @@ class AbrigoCreate(BaseModel):
     necessidades_urgentes: Optional[list[str]] = None
 
 
-class AbrigoUpdate(BaseModel):
+class AbrigoUpdate(DocumentoComChavesValidas):
     """
     Edição parcial. Campos enviados com null são removidos do documento.
     A ocupação não é editável: ela muda ao vincular/desvincular pessoas.

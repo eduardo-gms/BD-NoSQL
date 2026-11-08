@@ -4,6 +4,7 @@ Modelo de Pessoa Resgatada.
 
 from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from backend.models.campos_documento import DocumentoComChavesValidas
 
 
 class CondicoesSaude(BaseModel):
@@ -19,7 +20,7 @@ class ContatoEmergencia(BaseModel):
     telefone: Optional[str] = None
 
 
-class PessoaCampos(BaseModel):
+class PessoaCampos(DocumentoComChavesValidas):
     model_config = ConfigDict(extra="allow")  # aceita qualquer campo adicional
 
     # nomes variam entre perfis gerados pelo povoamento
