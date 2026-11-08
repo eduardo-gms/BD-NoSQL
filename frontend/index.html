@@ -67,8 +67,17 @@
     <section class="view" id="view-abrigos">
       <div class="toolbar">
         <input class="input" id="abrigos-busca" placeholder="Buscar abrigo..." />
-        <select class="input" id="abrigos-filtro">
-          <option value="">Todos os status</option>
+        <select class="input" id="abrigos-filtro" aria-label="Funcionamento">
+          <option value="">Todos os funcionamentos</option>
+          <option value="aberto">Abertos</option>
+          <option value="fechado">Fechados</option>
+        </select>
+        <select class="input" id="abrigos-ocupacao" aria-label="Ocupação">
+          <option value="">Todas as ocupações</option>
+          <option value="disponivel">Disponíveis</option>
+          <option value="lotado">Lotados</option>
+          <option value="superlotado">Superlotados</option>
+          <option value="sem_capacidade">Capacidade não informada</option>
         </select>
         <button class="btn btn-primary" id="btn-novo-abrigo">Cadastrar abrigo</button>
       </div>

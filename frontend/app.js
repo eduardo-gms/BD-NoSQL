@@ -70,7 +70,52 @@ function nomeAbrigo(id) {
 }
 
 function capacidade(a) {
-  return a.capacidade_maxima ?? a.capacidade_estimada ?? null;
+  return capacidadeValida(a.capacidade_maxima) ? a.capacidade_maxima
+    : capacidadeValida(a.capacidade_estimada) ? a.capacidade_estimada : null;
+}
+
+function capacidadeValida(valor) {
+  return typeof valor === "number" && Number.isFinite(valor) && valor > 0;
+}
+
+function funcionamento(a) {
+  return String(a.status || "").trim().toLowerCase() === "fechado" ? "fechado" : "aberto";
+}
+
+function situacaoOcupacao(a) {
+  const cap = capacidade(a);
+  if (cap === null) return "sem_capacidade";
+  const oc = a.ocupacao_atual || 0;
+  return oc < cap ? "disponivel" : oc === cap ? "lotado" : "superlotado";
+}
+
+function indicadoresAbrigo(a) {
+  const func = funcionamento(a), situacao = situacaoOcupacao(a);
+  const nomes = { disponivel: "Disponível", lotado: "Lotado", superlotado: "Superlotado", sem_capacidade: "Capacidade não informada" };
+  const cor = situacao === "disponivel" ? "green" : situacao === "sem_capacidade" ? "" : "red";
+  const estimada = capacidade(a) !== null && !capacidadeValida(a.capacidade_maxima);
+  return `<span class="tag ${func === "aberto" ? "green" : ""}">${func === "aberto" ? "Aberto" : "Fechado"}</span>
+    <span class="tag ${cor}">${nomes[situacao]}${estimada ? " · capacidade estimada" : ""}</span>`;
+}
+
+function avisoAcolhimento(form) {
+  const select = form.elements.abrigo_atual;
+  if (!select) return;
+  const aviso = document.createElement("p");
+  aviso.className = "hint";
+  aviso.setAttribute("aria-live", "polite");
+  select.parentElement.appendChild(aviso);
+  const atualizar = () => {
+    const a = state.abrigos.find((a) => a.id === select.value);
+    const situacao = a && situacaoOcupacao(a);
+    aviso.hidden = !a;
+    aviso.textContent = !a ? "" : ["lotado", "superlotado"].includes(situacao)
+      ? "Atenção: este abrigo está " + situacao + ". O acolhimento continua permitido em emergência."
+      : situacao === "sem_capacidade" ? "Capacidade não informada: não é possível estimar vagas disponíveis."
+      : "Abrigo disponível. A entrada pode atingir sua capacidade.";
+  };
+  select.addEventListener("change", atualizar);
+  atualizar();
 }
 
 function qtdDoacao(d) {
@@ -87,12 +132,12 @@ function fieldsChips(doc) {
     .join("")}</div>`;
 }
 
-function abrigoOptions(selected = "", { incluirVazio = true, vazioLabel = "Nenhum", excluir = null } = {}) {
+function abrigoOptions(selected = "", { incluirVazio = true, vazioLabel = "Nenhum", excluir = null, acolhimento = false } = {}) {
   const escassos = new Set(state.escassez.map((e) => e.abrigo.id));
   return (
     (incluirVazio ? `<option value="">${vazioLabel}</option>` : "") +
     state.abrigos
-      .filter((a) => a.id !== excluir)
+      .filter((a) => a.id !== excluir && (!acolhimento || funcionamento(a) === "aberto"))
       .map((a) => `<option value="${a.id}" ${a.id === selected ? "selected" : ""}>${esc(a.nome)}${escassos.has(a.id) ? " (em escassez)" : ""}</option>`)
       .join("")
   );
@@ -334,12 +379,7 @@ function fillAbrigoSelects() {
   ma.innerHTML = abrigoOptions(mv, { vazioLabel: "Todos os abrigos" });
   ma.value = mv;
 
-  const af = $("#abrigos-filtro");
-  const av = af.value;
-  const statuses = [...new Set(state.abrigos.map((a) => a.status).filter(Boolean))];
-  af.innerHTML = `<option value="">Todos os status</option><option value="__sem">Sem status</option>` +
-    statuses.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
-  af.value = av;
+
 }
 
 function renderAll() {
@@ -413,20 +453,18 @@ function renderPainel() {
     </div>`).join("");
   bindStatsClick($("#stats"));
 
-  // Ocupação
-  const comCap = state.abrigos
-    .map((a) => ({ a, cap: capacidade(a), oc: a.ocupacao_atual || 0 }))
-    .filter((x) => x.cap)
-    .sort((x, y) => y.oc / y.cap - x.oc / x.cap);
-  $("#ocupacao-legend").textContent = `${comCap.length} abrigos com capacidade informada`;
-  $("#ocupacao-list").innerHTML = comCap.length ? comCap.map(({ a, cap, oc }) => {
-    const pct = Math.round((oc / cap) * 100);
-    const cls = pct >= 100 ? "full" : pct >= 75 ? "warn" : "";
+  // Ocupação e funcionamento são indicadores independentes.
+  const ordenados = [...state.abrigos].sort((a, b) =>
+    ((b.ocupacao_atual || 0) / (capacidade(b) || Infinity)) - ((a.ocupacao_atual || 0) / (capacidade(a) || Infinity)));
+  $("#ocupacao-legend").textContent = `${ordenados.length} abrigos`;
+  $("#ocupacao-list").innerHTML = ordenados.length ? ordenados.map((a) => {
+    const cap = capacidade(a), oc = a.ocupacao_atual || 0;
+    const pct = cap ? Math.round(oc / cap * 100) : null;
     return `<div class="ocupacao-row">
-      <div class="top"><span>${esc(a.nome)} ${a.status ? `<span class="tag ${statusClass(a.status)}">${esc(a.status)}</span>` : ""}</span>
-      <span>${oc}/${cap}${a.capacidade_maxima == null ? " (estim.)" : ""}, ${pct}%</span></div>
-      <div class="bar ${cls}"><i style="width:${Math.min(pct, 100)}%"></i></div></div>`;
-  }).join("") : empty("Nenhum abrigo com capacidade cadastrada.");
+      <div class="top"><span>${esc(a.nome)}</span><span>${oc} pessoa(s)${cap ? ` / ${cap}, ${pct}%` : ""}</span></div>
+      <div class="tags">${indicadoresAbrigo(a)}</div>
+      ${cap ? `<div class="bar ${pct >= 100 ? "full" : pct >= 75 ? "warn" : ""}"><i style="width:${Math.min(pct, 100)}%"></i></div>` : ""}</div>`;
+  }).join("") : empty("Nenhum abrigo cadastrado.");
 
   // Perfis de schema (heterogeneidade)
   const perfis = (docs, label) => {
@@ -563,7 +601,7 @@ function formPessoa(p = null) {
       <div class="field"><label>Contato de emergência</label><input name="contato_nome" placeholder="Nome" value="${esc(contato.nome || "")}" /></div>
       <div class="field"><label>Telefone do contato</label><input name="contato_tel" value="${esc(contato.telefone || "")}" /></div>
       ${novo
-        ? `<div class="field full"><label>Abrigo</label><select name="abrigo_atual">${abrigoOptions()}</select></div>`
+        ? `<div class="field full"><label>Abrigo</label><select name="abrigo_atual">${abrigoOptions("", { acolhimento: true })}</select></div>`
         : `<p class="muted small" style="grid-column: 1 / -1">Abrigo: <b>${esc(nomeAbrigo(p.abrigo_atual) || "nenhum")}</b>. Para mudar, use Vincular ou Transferir no card.</p>`}
       <div class="field full"><label>Outras informações</label>
         <div class="extras" id="extras-lista"></div>
@@ -576,6 +614,7 @@ function formPessoa(p = null) {
       <div class="form-actions field full"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">${novo ? "Cadastrar" : "Salvar"}</button></div>
     </form>`, (root) => {
     const form = $("#f-pessoa", root);
+    avisoAcolhimento(form);
     const lista = $("#extras-lista", root);
 
     // guarda o que foi digitado antes de redesenhar a lista
@@ -709,15 +748,18 @@ function formVincular(p) {
     <div class="hint">A ocupação do abrigo de destino aumenta em 1. Em caso de transferência, a do abrigo anterior diminui.</div>
     ${p.abrigo_atual ? `<p class="muted">Abrigo atual: <b>${esc(nomeAbrigo(p.abrigo_atual))}</b></p>` : ""}
     <form id="f-vinc" class="form-grid">
-      <div class="field full"><label>Abrigo de destino <b>*</b></label><select name="abrigo_atual" required>${abrigoOptions("", { vazioLabel: "Selecione", excluir: p.abrigo_atual })}</select></div>
+      <div class="field full"><label>Abrigo de destino <b>*</b></label><select name="abrigo_atual" required>${abrigoOptions("", { vazioLabel: "Selecione", excluir: p.abrigo_atual, acolhimento: true })}</select></div>
       <div class="form-actions field full"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div>
-    </form>`, (root) => bindForm($("#f-vinc", root), async (fd) => {
-    await api("PATCH", `/pessoas/${p.id}/vincular-abrigo`, { abrigo_atual: fd.get("abrigo_atual") });
-    closeModal();
-    toast(`Vinculada a <b>${esc(nomeAbrigo(fd.get("abrigo_atual")))}</b>.`);
-    state.highlight = p.id;
-    await reload(["pessoas", "abrigos"]);
-  }));
+    </form>`, (root) => {
+    avisoAcolhimento($("#f-vinc", root));
+    bindForm($("#f-vinc", root), async (fd) => {
+      await api("PATCH", `/pessoas/${p.id}/vincular-abrigo`, { abrigo_atual: fd.get("abrigo_atual") });
+      closeModal();
+      toast(`Vinculada a <b>${esc(nomeAbrigo(fd.get("abrigo_atual")))}</b>.`);
+      state.highlight = p.id;
+      await reload(["pessoas", "abrigos"]);
+    });
+  });
 }
 
 function formEditarJSON({ titulo, doc, path, exemplo, kinds, hint }) {
@@ -761,10 +803,12 @@ $("#pessoas-list").addEventListener("click", async (e) => {
 function renderAbrigos() {
   const q = $("#abrigos-busca").value.trim().toLowerCase();
   const f = $("#abrigos-filtro").value;
+  const ocupacao = $("#abrigos-ocupacao").value;
   const escassos = new Set(state.escassez.map((e) => e.abrigo.id));
   const list = state.abrigos.filter((a) =>
     (!q || JSON.stringify(a).toLowerCase().includes(q)) &&
-    (!f || (f === "__sem" ? !a.status : a.status === f)));
+    (!f || funcionamento(a) === f) &&
+    (!ocupacao || situacaoOcupacao(a) === ocupacao));
   $("#abrigos-list").innerHTML = list.length ? list.map((a) => {
     const cap = capacidade(a);
     const oc = a.ocupacao_atual || 0;
@@ -774,10 +818,10 @@ function renderAbrigos() {
     return `<article class="item" data-id="${a.id}">
       <div class="item-head">
         <div><div class="item-title">${esc(a.nome)}</div><div class="item-sub">${esc(a.endereco || "Endereço não informado")}</div></div>
-        <div class="tags">${a.status ? `<span class="tag ${statusClass(a.status)}">${esc(a.status)}</span>` : ""}${escassos.has(a.id) ? `<span class="tag red">Escassez</span>` : ""}</div>
       </div>
-      ${cap ? `<div><div class="ocupacao-row"><div class="top"><span class="muted small">Ocupação</span><span>${oc}/${cap}${a.capacidade_maxima == null ? " (estimada)" : ""}, ${pct}%</span></div>
-        <div class="bar ${pct >= 100 ? "full" : pct >= 75 ? "warn" : ""}"><i style="width:${Math.min(pct, 100)}%"></i></div></div></div>` : `<span class="muted small">Capacidade não informada</span>`}
+      <div class="tags abrigo-indicadores">${indicadoresAbrigo(a)}${escassos.has(a.id) ? `<span class="tag red">Escassez</span>` : ""}</div>
+      ${cap ? `<div><div class="ocupacao-row"><div class="top"><span class="muted small">Ocupação</span><span>${oc}/${cap}${!capacidadeValida(a.capacidade_maxima) ? " (estimada)" : ""}, ${pct}%</span></div>
+        <div class="bar ${pct >= 100 ? "full" : pct >= 75 ? "warn" : ""}"><i style="width:${Math.min(pct, 100)}%"></i></div></div></div>` : `<span class="muted small">${oc} pessoa(s) · Capacidade não informada</span>`}
       <dl class="kv">
         ${a.coordenador ? `<dt>Coordenação</dt><dd>${esc(a.coordenador)}</dd>` : ""}
         <dt>Pessoas</dt><dd>${nPessoas} vinculada(s) no sistema</dd>
@@ -802,18 +846,19 @@ function renderAbrigos() {
 function formAbrigo(a = null) {
   const novo = !a;
   a = a || { status: "aberto" };
-  const opts = ["aberto", "lotado", "Superlotado", "fechado"];
-  if (a.status && !opts.includes(a.status)) opts.push(a.status);
+  const opts = ["aberto", "fechado"];
   let necessidades = [...(a.necessidades_urgentes || [])];
 
   openModal(novo ? "Cadastrar abrigo" : `Editar ${a.nome}`, `
-    ${novo ? "" : `<div class="hint">A ocupação (${a.ocupacao_atual || 0}) não é editada aqui: ela muda ao vincular ou desvincular pessoas.</div>`}
     <form id="f-abrigo" class="form-grid" autocomplete="off">
       <div class="field full"><label>Nome <b>*</b></label><input name="nome" value="${esc(a.nome || "")}" required /></div>
       <div class="field full"><label>Endereço</label><input name="endereco" value="${esc(a.endereco || "")}" /></div>
       <div class="field"><label>Coordenador(a)</label><input name="coordenador" value="${esc(a.coordenador || "")}" /></div>
-      <div class="field"><label>Status</label><select name="status"><option value="">Sem status</option>${opts.map((o) => `<option ${o === a.status ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></div>
-      <div class="field"><label>Capacidade máxima</label><input name="capacidade_maxima" type="number" min="1" value="${a.capacidade_maxima ?? ""}" placeholder="${a.capacidade_estimada ? "estimada: " + a.capacidade_estimada : ""}" /></div>
+      <div class="field"><label>Funcionamento</label><select name="status">${opts.map((o) => `<option value="${o}" ${o === funcionamento(a) ? "selected" : ""}>${o === "aberto" ? "Aberto" : "Fechado"}</option>`).join("")}</select></div>
+      <div class="hint field full">Fechado bloqueia novos acolhimentos. Pessoas presentes podem sair; doações e estoque continuam permitidos.</div>
+      <div class="field full"><label for="abrigo-capacidade">Capacidade</label><input id="abrigo-capacidade" name="capacidade" type="number" min="1" step="1" value="${capacidade(a) ?? ""}" placeholder="Não informada" aria-describedby="abrigo-capacidade-ajuda" /></div>
+      <div class="field full"><label class="check"><input name="capacidade_estimada" type="checkbox" ${!capacidadeValida(a.capacidade_maxima) && capacidadeValida(a.capacidade_estimada) ? "checked" : ""} /> Esse valor é uma estimativa</label></div>
+      <p id="abrigo-capacidade-ajuda" class="muted small field full">Deixe a capacidade vazia se ainda não souber.</p>
       <div class="field full"><label>Necessidades urgentes</label>
         <div class="tags" id="nec-lista"></div>
         <div class="api-row"><input class="input" id="nec-nova" placeholder="Ex: Colchões" list="lista-necessidades" style="flex:1" /><button type="button" class="btn" id="nec-add">Adicionar</button></div>
@@ -848,7 +893,8 @@ function formAbrigo(a = null) {
         endereco: v.endereco.trim(),
         coordenador: v.coordenador.trim(),
         status: v.status,
-        capacidade_maxima: v.capacidade_maxima ? +v.capacidade_maxima : "",
+        capacidade_maxima: v.capacidade && !fd.has("capacidade_estimada") ? +v.capacidade : "",
+        capacidade_estimada: v.capacidade && fd.has("capacidade_estimada") ? +v.capacidade : "",
         necessidades_urgentes: necessidades,
       };
       let salvo;
@@ -1400,6 +1446,7 @@ $("#pessoas-filtro").addEventListener("change", async () => {
 });
 $("#abrigos-busca").addEventListener("input", debounce(renderAbrigos));
 $("#abrigos-filtro").addEventListener("change", renderAbrigos);
+$("#abrigos-ocupacao").addEventListener("change", renderAbrigos);
 
 const filtrarDoacoes = async () => { try { await loadDoacoes(); renderDoacoes(); } catch (err) { toast(err.message, "error"); } };
 $("#btn-filtrar-doacoes").addEventListener("click", filtrarDoacoes);

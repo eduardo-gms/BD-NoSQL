@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.models.pessoa import PessoaCreate, PessoaUpdate, VincularAbrigoRequest
 from backend.crud import pessoas as crud
-from backend.crud.abrigos import AbrigoNaoEncontrado
+from backend.crud.abrigos import AbrigoNaoEncontrado, AbrigoFechado
 
 router = APIRouter(prefix="/pessoas", tags=["Pessoas"])
 
@@ -13,6 +13,8 @@ def cadastrar_pessoa(pessoa: PessoaCreate):
     """Cadastra uma nova pessoa resgatada. Aceita campos extras livremente."""
     try:
         return crud.cadastrar_pessoa(pessoa)
+    except AbrigoFechado as e:
+        raise HTTPException(409, str(e))
     except AbrigoNaoEncontrado:
         raise HTTPException(404, "Abrigo informado não existe.")
     except ValueError as e:
@@ -53,6 +55,8 @@ def vincular_abrigo(pessoa_id: str, req: VincularAbrigoRequest):
         return crud.vincular_pessoa_abrigo(pessoa_id, req.abrigo_atual)
     except crud.PessoaNaoEncontrada:
         raise HTTPException(404, "Pessoa não encontrada.")
+    except AbrigoFechado as e:
+        raise HTTPException(409, str(e))
     except AbrigoNaoEncontrado:
         raise HTTPException(404, "Abrigo não encontrado.")
 

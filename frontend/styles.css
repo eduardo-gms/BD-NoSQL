@@ -139,6 +139,8 @@ code { font-family: var(--mono); font-size: .85em; background: #eef0f3; padding:
 .tag.blue { background: #e4eef9; color: #2c5282; }
 .tag.teal { background: #e4eef9; color: #2c5282; }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.abrigo-indicadores { min-width: 0; }
+.abrigo-indicadores .tag { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .extras { display: grid; gap: 6px; }
 .extra-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 8px; align-items: center; }
 .extra-row label { font-size: .82rem; color: var(--text); overflow-wrap: anywhere; }

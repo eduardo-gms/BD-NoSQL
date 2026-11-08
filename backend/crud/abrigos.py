@@ -25,6 +25,10 @@ class AbrigoNaoEncontrado(Exception):
     pass
 
 
+class AbrigoFechado(Exception):
+    pass
+
+
 class AbrigoEmUso(Exception):
     pass
 
@@ -67,15 +71,19 @@ def atualizar_abrigo(abrigo_id: str, dados: dict[str, Any]) -> dict[str, Any]:
     dados = _sem_campos_protegidos(dados)
     if dados.get("nome") is None:
         dados.pop("nome", None)  # nome não pode ser removido
-    operacao: dict[str, Any] = {}
-    definir = {k: v for k, v in dados.items() if v is not None}
-    remover = {k: "" for k, v in dados.items() if v is None}
-    if definir:
-        operacao["$set"] = definir
+    definir = {k: {"$literal": v} for k, v in dados.items() if v is not None}
+    remover = [k for k, v in dados.items() if v is None]
+    # Normaliza documentos antigos ao editar, sem sobrescrever um fechamento
+    # concorrente com um valor lido anteriormente pela aplicação.
+    if "status" not in definir:
+        definir["status"] = {"$cond": [
+            {"$eq": [{"$toLower": {"$trim": {"input": {
+                "$convert": {"input": "$status", "to": "string", "onError": "", "onNull": ""}
+            }}}}, "fechado"]}, "fechado", "aberto"
+        ]}
+    operacao = [{"$set": definir}]
     if remover:
-        operacao["$unset"] = remover
-    if not operacao:
-        return buscar_abrigo(abrigo_id)
+        operacao.append({"$unset": remover})
 
     doc = abrigos_collection().find_one_and_update(
         {"_id": _oid(abrigo_id)}, operacao, return_document=ReturnDocument.AFTER
@@ -118,21 +126,25 @@ def atualizar_status_abrigo(abrigo_id: str, dados: dict[str, Any]) -> dict[str, 
 
 def reservar_vaga(abrigo_id: str, *, session: Optional[ClientSession] = None) -> dict[str, Any]:
     """
-    Incrementa ocupacao_atual em 1 — sem checagem de capacidade_maxima.
+    Incrementa ocupacao_atual em 1 apenas se aberto para acolhimentos.
+    Capacidade é informativa e não bloqueia entradas.
     Cria o campo com valor 1 se o abrigo ainda não tiver ocupacao_atual
     (caso dos "Abrigos Improvisados", que só têm capacidade_estimada).
-    Lança AbrigoNaoEncontrado se o abrigo não existir.
+    Lança AbrigoNaoEncontrado se não existir ou AbrigoFechado se fechado.
     """
     oid = _oid(abrigo_id)
 
     doc = abrigos_collection().find_one_and_update(
-        {"_id": oid},
+        {"_id": oid, "status": {"$not": {"$regex": r"^\s*fechado\s*$", "$options": "i"}}},
         {"$inc": {"ocupacao_atual": 1}},
         return_document=ReturnDocument.AFTER,
         session=session,
     )
     if not doc:
-        raise AbrigoNaoEncontrado(abrigo_id)
+        existente = abrigos_collection().find_one({"_id": oid}, session=session)
+        if not existente:
+            raise AbrigoNaoEncontrado(abrigo_id)
+        raise AbrigoFechado("O abrigo está fechado para novos acolhimentos. Escolha outro destino.")
     return abrigo_to_dict(doc)
 
 

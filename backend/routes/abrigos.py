@@ -30,7 +30,7 @@ def buscar_abrigo(abrigo_id: str):
 @router.patch("/{abrigo_id}/status")
 def atualizar_status(abrigo_id: str, dados: AbrigoStatusUpdate):
     """
-    Atualiza status (ex: 'aberto', 'lotado', 'fechado') e/ou a
+    Atualiza funcionamento ('aberto' ou 'fechado') e/ou a
     capacidade_maxima do abrigo. Aceita campos extras (schema-less).
     """
     try:
