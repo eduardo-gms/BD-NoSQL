@@ -524,6 +524,7 @@ function renderPessoas() {
         ${abrigo ? `<button class="btn btn-sm" data-act="desvincular">Desvincular</button>` : ""}
         <button class="btn btn-sm" data-act="editar">Editar</button>
         <button class="btn btn-sm" data-act="json">JSON</button>
+        <button class="btn btn-danger btn-sm" data-act="excluir">Excluir</button>
       </div>
       <span class="id-chip" data-copy="${p.id}" title="Copiar ID">#${p.id}</span>
     </article>`;
@@ -794,6 +795,14 @@ $("#pessoas-list").addEventListener("click", async (e) => {
       await api("DELETE", `/pessoas/${p.id}/vincular-abrigo`);
       toast("Pessoa desvinculada do abrigo.", "info");
       state.highlight = p.id;
+      await reload(["pessoas", "abrigos"]);
+    } catch (err) { toast(err.message, "error"); }
+  }
+  if (act === "excluir") {
+    if (!confirm(`Excluir o cadastro de "${nomePessoa(p)}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api("DELETE", `/pessoas/${p.id}`);
+      toast(`Cadastro de <b>${esc(nomePessoa(p))}</b> excluído.`, "info");
       await reload(["pessoas", "abrigos"]);
     } catch (err) { toast(err.message, "error"); }
   }

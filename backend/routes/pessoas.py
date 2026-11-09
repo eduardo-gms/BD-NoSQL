@@ -48,6 +48,15 @@ def atualizar_pessoa(pessoa_id: str, dados: PessoaUpdate):
         raise HTTPException(422, str(e))
 
 
+@router.delete("/{pessoa_id}")
+def excluir_pessoa(pessoa_id: str):
+    """Exclui o cadastro da pessoa e libera a vaga no abrigo, se houver vínculo."""
+    try:
+        return crud.excluir_pessoa(pessoa_id)
+    except crud.PessoaNaoEncontrada:
+        raise HTTPException(404, "Pessoa não encontrada.")
+
+
 @router.patch("/{pessoa_id}/vincular-abrigo")
 def vincular_abrigo(pessoa_id: str, req: VincularAbrigoRequest):
     """Vincula (ou transfere) a pessoa a um abrigo."""

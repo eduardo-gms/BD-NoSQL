@@ -153,3 +153,19 @@ def desvincular_pessoa(pessoa_id: str) -> dict[str, Any]:
         return buscar_pessoa(pessoa_id, session=session)
 
     return _em_transacao(desvincular)
+
+
+def excluir_pessoa(pessoa_id: str) -> dict[str, Any]:
+    """Exclui o cadastro e libera a vaga juntos, ou desfaz ambos em caso de erro."""
+    def excluir(session: ClientSession) -> dict[str, Any]:
+        pessoa = buscar_pessoa(pessoa_id, session=session)
+        abrigo_atual = pessoa.get("abrigo_atual")
+        if abrigo_atual:
+            try:
+                liberar_vaga(abrigo_atual, session=session)
+            except AbrigoNaoEncontrado:
+                pass
+        pessoas_collection().delete_one({"_id": _oid(pessoa_id)}, session=session)
+        return {"mensagem": "Pessoa excluída.", "id": pessoa_id}
+
+    return _em_transacao(excluir)
